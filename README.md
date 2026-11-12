@@ -1,6 +1,6 @@
 # Polňačka
 
-**▶ Play it: https://YOUR-GITHUB-NAME.github.io/polnacka/**
+## **Play it: https://astrome0.github.io/polnacka/**
 
 A first-person offroad driving sandbox in the browser, set in Czech farmland: gravel roads, fields, forests,
 rivers with fords and bridges, traffic, races, and a living weather system (rain, hail, storm cells and tornadoes).
@@ -14,21 +14,9 @@ Open the page. Settings and your progress stay in your browser (localStorage); n
 **Computer:** `W A S D` drive · `Space` handbrake · `Shift` nitro · `C` camera · `R` repair · `F` get out/in ·
 `U` drone station · `P` weather · `T` time · `Esc` menu.
 
-**Phone / tablet (landscape):** ◀ ▶ steer, PLYN gas, BRZDA brake, RUČNÍ handbrake, NITRO. Drag anywhere to look round.
-On foot and with the drone, a floating stick on the left walks/flies. 🚪 gets in or out (stop the car first), 🛸 the drone, ⋯ more.
+**Phone / tablet (landscape):** steer, PLYN gas, BRZDA brake, RUČNÍ handbrake, NITRO. Drag anywhere to look round.
+On foot and with the drone, a floating stick on the left walks/flies. gets in or out (stop the car first), the drone, ⋯ more.
 Phones start on **low** quality; change it in the menu. Try the touch controls on a computer with `?touch=1`.
-
-## Run locally
-
-```
-node server.js     # http://localhost:8176
-```
-
-Any static file server works (the game is ES modules, so don't open `index.html` by double-clicking).
-
-## Host on GitHub Pages
-
-Settings → Pages → Deploy from a branch → `main` / root. The `.nojekyll` file is already here.
 
 ## Phones
 
