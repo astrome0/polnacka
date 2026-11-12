@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="touch.css">
+<title>Polňačka</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#fff7e8; --dim:rgba(255,247,232,.68); --line:rgba(255,247,232,.24); --gold:#ffc24a; --red:#ff5a3c; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:#1c1712; color:var(--ink); font-family:'Barlow',system-ui,sans-serif; overflow:hidden; user-select:none; }
+  canvas#view { position:fixed; inset:0; width:100%; height:100%; display:block; }
+
+  #loading { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; background:#1c1712; transition:opacity .9s; z-index:30; }
+  #loading.gone { opacity:0; pointer-events:none; }
+  #loading h1 { font:700 72px/1 'Barlow Condensed',sans-serif; letter-spacing:.04em; margin:0; }
+  #bar { width:min(320px,70vw); height:3px; background:var(--line); overflow:hidden; }
+  #bar i { display:block; height:100%; width:0; background:var(--gold); transition:width .25s; }
+  #loadTxt { color:var(--dim); font-size:15px; }
+
+  #menu { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column; justify-content:space-between; padding:clamp(20px,3.4vw,46px); pointer-events:none; transition:opacity .5s;
+    background:linear-gradient(180deg,rgba(20,12,4,.42),rgba(20,12,4,0) 26%,rgba(20,12,4,0) 56%,rgba(20,12,4,.68)); }
+  #menu.gone { opacity:0; visibility:hidden; transition:opacity .4s, visibility 0s .4s; }
+  #brand { font:700 clamp(46px,6.6vw,92px)/.9 'Barlow Condensed',sans-serif; letter-spacing:.02em; text-shadow:0 2px 26px rgba(40,18,0,.55); }
+  #brand small { display:block; font:500 clamp(15px,1.5vw,19px)/1.4 'Barlow',sans-serif; letter-spacing:.01em; color:var(--ink); opacity:.88; margin-top:12px; }
+  #pick { pointer-events:auto; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:clamp(6px,1vw,14px); }
+  .card { text-align:left; padding:13px 15px 14px; background:rgba(22,14,6,.5); border:0; border-top:2px solid var(--line); color:var(--ink); font:inherit; cursor:pointer; transition:background .15s,border-color .15s; backdrop-filter:blur(6px); }
+  .card:hover { background:rgba(22,14,6,.68); }
+  .card.on { background:rgba(22,14,6,.82); border-top-color:var(--gold); }
+  .card b { display:block; font:700 25px/1.05 'Barlow Condensed',sans-serif; letter-spacing:.015em; }
+  .card em { font-style:normal; color:var(--gold); font-size:13px; font-weight:600; }
+  .card p { margin:5px 0 0; font-size:14px; line-height:1.3; color:var(--dim); }
+  #startRow { display:flex; justify-content:space-between; align-items:center; gap:18px; margin-top:14px; pointer-events:auto; flex-wrap:wrap; }
+  #go { background:var(--gold); color:#241607; border:0; padding:12px 30px; font:700 22px/1 'Barlow Condensed',sans-serif; letter-spacing:.05em; cursor:pointer; }
+  #go:hover { background:#ffd377; }
+  .keys { color:var(--dim); font-size:13.5px; line-height:1.55; }
+  kbd { font:600 12px 'Barlow',sans-serif; color:var(--ink); border:1px solid var(--line); border-radius:3px; padding:0 5px; margin-right:2px; }
+  #opts { display:flex; gap:6px; align-items:center; font-size:13.5px; color:var(--dim); }
+  #opts button { background:rgba(22,14,6,.55); color:var(--ink); border:1px solid var(--line); font:inherit; font-size:13.5px; padding:5px 10px; cursor:pointer; }
+  #opts button.on { border-color:var(--gold); color:var(--gold); }
+
+  #hud { position:fixed; inset:0; z-index:10; pointer-events:none; opacity:0; transition:opacity .4s; }
+  #hud.on { opacity:1; }
+  #farm { position:absolute; top:16px; left:18px; font-size:14px; color:var(--dim); text-shadow:0 1px 6px rgba(0,0,0,.6); line-height:1.45; }
+  #farm b { color:var(--ink); font:600 21px/1 'Barlow Condensed',sans-serif; letter-spacing:.01em; }
+  #farm b.cash { color:var(--gold); font-size:17px; }
+  #speed { position:absolute; right:22px; bottom:16px; text-align:right; text-shadow:0 1px 8px rgba(0,0,0,.7); display:none; }
+  #speed b { font:700 56px/1 'Barlow Condensed',sans-serif; }
+  #speed span { font-size:13px; color:var(--dim); margin-left:4px; }
+  #bars { position:absolute; left:18px; bottom:16px; width:150px; font-size:12px; color:var(--dim); text-shadow:0 1px 5px rgba(0,0,0,.7); }
+  .barl { display:flex; justify-content:space-between; margin-top:7px; }
+  .barw { height:3px; background:rgba(255,255,255,.2); margin-top:2px; }
+  .barw i { display:block; height:100%; background:var(--gold); }
+  #hp i { background:#6fdc6a; }
+  #toast { position:absolute; left:50%; top:13%; transform:translateX(-50%); font:600 27px/1.1 'Barlow Condensed',sans-serif; letter-spacing:.015em; text-shadow:0 2px 12px rgba(0,0,0,.75); opacity:0; transition:opacity .3s; text-align:center; white-space:nowrap; }
+  #toast.on { opacity:1; }
+  #dead { position:absolute; left:50%; top:30%; transform:translateX(-50%); text-align:center; opacity:0; transition:opacity .4s; }
+  #dead.on { opacity:1; }
+  #dead b { display:block; font:700 56px/1 'Barlow Condensed',sans-serif; text-shadow:0 2px 18px rgba(0,0,0,.8); }
+  #dead span { color:var(--ink); text-shadow:0 1px 8px rgba(0,0,0,.8); }
+  #hint { position:absolute; left:50%; top:62%; transform:translateX(-50%); font:600 22px/1 'Barlow Condensed',sans-serif; text-shadow:0 1px 10px rgba(0,0,0,.8); opacity:0; transition:opacity .25s; }
+  #hint.on { opacity:1; }
+  #clock { position:absolute; right:22px; top:16px; font:600 19px/1 'Barlow Condensed',sans-serif; text-shadow:0 1px 8px rgba(0,0,0,.7); }
+  #hint kbd { font:inherit; border:1px solid rgba(255,255,255,.6); border-radius:5px; padding:1px 7px; margin-right:6px; }
+  /* binoculars: black everywhere outside two overlapping circles (both masks must be opaque) */
+  #bino { position:fixed; inset:0; z-index:9; pointer-events:none; opacity:0; background:#050505;
+    --r:41vh; --e:2.2vh; --off:21vh;
+    -webkit-mask-image:radial-gradient(circle var(--r) at calc(50% - var(--off)) 50%, transparent calc(var(--r) - var(--e)), #000 var(--r)), radial-gradient(circle var(--r) at calc(50% + var(--off)) 50%, transparent calc(var(--r) - var(--e)), #000 var(--r));
+    mask-image:radial-gradient(circle var(--r) at calc(50% - var(--off)) 50%, transparent calc(var(--r) - var(--e)), #000 var(--r)), radial-gradient(circle var(--r) at calc(50% + var(--off)) 50%, transparent calc(var(--r) - var(--e)), #000 var(--r));
+    -webkit-mask-composite:source-in; mask-composite:intersect; }
+  #modes { pointer-events:auto; display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:10px; font-size:13.5px; color:var(--dim); }
+  #modes button { background:rgba(22,14,6,.55); color:var(--ink); border:1px solid var(--line); font:inherit; font-size:14px; padding:6px 12px; cursor:pointer; }
+  #modes button.on { border-color:var(--gold); color:var(--gold); }
+
+  #race { position:fixed; inset:0; z-index:11; pointer-events:none; display:none; text-shadow:0 1px 7px rgba(0,0,0,.75); }
+  #race.on { display:block; }
+  #rTop { position:absolute; top:14px; left:50%; transform:translateX(-50%); text-align:center; }
+  #rTime { display:block; font:700 40px/1 'Barlow Condensed',sans-serif; letter-spacing:.02em; }
+  #rName { font-size:13px; color:var(--dim); }
+  #rNote { position:absolute; top:19%; left:50%; transform:translateX(-50%); font:600 24px/1 'Barlow Condensed',sans-serif; color:var(--red); white-space:nowrap; }
+  #rNav { position:absolute; top:92px; left:50%; transform:translateX(-50%); text-align:center; font-size:13px; }
+  #rArrow { width:0; height:0; margin:0 auto 5px; border-left:13px solid transparent; border-right:13px solid transparent; border-bottom:30px solid var(--gold); filter:drop-shadow(0 1px 4px rgba(0,0,0,.7)); transform-origin:50% 60%; }
+  #rSide { position:absolute; top:16px; right:18px; text-align:right; font-size:14px; }
+  #rPos { display:block; font:700 34px/1 'Barlow Condensed',sans-serif; }
+  #rGate { display:block; color:var(--dim); margin:2px 0 8px; }
+  #rList { list-style:none; counter-reset:p; margin:0; padding:0; color:var(--dim); line-height:1.45; }
+  #rList li { counter-increment:p; }
+  #rList li::before { content:counter(p) ". "; }
+  #rList li.me { color:var(--gold); font-weight:600; }
+  #rBig { position:absolute; left:50%; top:30%; transform:translateX(-50%); font:700 84px/1 'Barlow Condensed',sans-serif; opacity:0; transition:opacity .2s; text-shadow:0 3px 20px rgba(0,0,0,.8); white-space:nowrap; }
+  #rBig.on { opacity:1; }
+  #rEnd { position:fixed; inset:0; z-index:25; display:none; align-items:center; justify-content:center; background:rgba(16,10,4,.52); }
+  #rEnd.on { display:flex; }
+  #rBox { width:min(460px,calc(100vw - 32px)); background:rgba(22,14,6,.92); border-top:2px solid var(--gold); padding:20px 24px 22px; }
+  #rBox h2 { font:700 34px/1 'Barlow Condensed',sans-serif; margin:0; }
+  #rSub { color:var(--dim); font-size:14px; margin-top:4px; }
+  #rTable { width:100%; border-collapse:collapse; margin:14px 0 16px; font-size:15px; }
+  #rTable td { padding:4px 0; border-top:1px solid var(--line); }
+  #rTable td:nth-child(3),#rTable td:nth-child(4) { text-align:right; font-variant-numeric:tabular-nums; }
+  #rTable tr.me { color:var(--gold); font-weight:600; }
+  #rBtns { display:flex; gap:8px; flex-wrap:wrap; }
+  #rBtns button { background:rgba(255,247,232,.08); color:var(--ink); border:1px solid var(--line); font:600 15px 'Barlow',sans-serif; padding:8px 14px; cursor:pointer; }
+  #rBtns button:first-child { background:var(--gold); color:#241607; border-color:var(--gold); }
+  /* ---- drone: the station (U) ---- */
+  #deck { position:fixed; inset:0; z-index:26; display:none; align-items:center; justify-content:center; background:radial-gradient(ellipse at center,rgba(10,9,8,.35),rgba(10,9,8,.72)); }
+  #deck.on { display:flex; }
+  #dkBox { width:min(820px,calc(100vw - 28px)); background:linear-gradient(180deg,rgba(28,30,32,.95),rgba(16,17,18,.96)); border:1px solid rgba(255,255,255,.08); border-top:2px solid var(--gold); box-shadow:0 30px 80px rgba(0,0,0,.55); position:relative; overflow:hidden; }
+  #dkBox::before { content:''; position:absolute; inset:0; pointer-events:none; opacity:.5;
+    background-image:linear-gradient(rgba(255,194,74,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,194,74,.04) 1px,transparent 1px); background-size:24px 24px; }
+  #dkBox header { position:relative; display:flex; align-items:center; gap:22px; padding:16px 20px 0; }
+  .dkLogo b { display:block; font:700 34px/0.9 'Barlow Condensed',sans-serif; letter-spacing:.14em; color:var(--gold); }
+  .dkLogo span { font-size:11.5px; letter-spacing:.22em; text-transform:uppercase; color:var(--dim); }
+  #dkTabs { display:flex; gap:2px; align-self:flex-end; }
+  #dkTabs button { background:none; border:0; border-bottom:2px solid transparent; color:var(--dim); font:600 17px/1 'Barlow Condensed',sans-serif; letter-spacing:.1em; text-transform:uppercase; padding:10px 14px 9px; cursor:pointer; }
+  #dkTabs button:hover { color:var(--ink); }
+  #dkTabs button.on { color:var(--ink); border-bottom-color:var(--gold); }
+  .dkCash { margin-left:auto; text-align:right; }
+  .dkCash span { display:block; font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); }
+  .dkCash b { font:700 24px/1 'Barlow Condensed',sans-serif; font-variant-numeric:tabular-nums; }
+  #dkClose { background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--ink); font:600 13px 'Barlow',sans-serif; width:30px; height:30px; cursor:pointer; }
+  #dkClose:hover { border-color:var(--gold); color:var(--gold); }
+  #dkBox section { display:none; position:relative; padding:18px 20px 20px; border-top:1px solid rgba(255,255,255,.07); margin-top:-1px; }
+  #dkBox section.on { display:block; }
+  #dkBox #dkStart.on { display:grid; grid-template-columns:300px 1fr; gap:22px; }
+  .dkDrone { position:relative; background:radial-gradient(circle at 50% 46%,rgba(255,194,74,.1),transparent 62%),rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.06); display:flex; align-items:center; justify-content:center; min-height:258px; }
+  .dkDrone svg { width:230px; height:230px; overflow:visible; }
+  .dkDrone .arm { stroke:#3a3e43; stroke-width:9; stroke-linecap:round; }
+  .dkDrone .bod { fill:#2a2d31; stroke:#4a4f55; stroke-width:1.5; }
+  .dkDrone .gold { fill:var(--gold); }
+  .dkDrone .mot { fill:#1c1e21; stroke:#555b62; stroke-width:1.5; }
+  .dkDrone .prop { fill:none; stroke:rgba(220,226,232,.55); stroke-width:3; stroke-linecap:round; transform-box:fill-box; transform-origin:center; }
+  #dkProps.spin .prop { animation:dkSpin .09s linear infinite; stroke:rgba(220,226,232,.28); }
+  #dkProps.spin .blur { opacity:1; }
+  .dkDrone .blur { fill:rgba(220,226,232,.08); stroke:rgba(220,226,232,.18); opacity:0; transition:opacity .3s; }
+  @keyframes dkSpin { to { transform:rotate(360deg); } }
+  #dkRigCharge { opacity:0; transition:opacity .3s; }
+  #dkRigCharge.on { opacity:1; animation:dkPulse 1.6s ease-in-out infinite; }
+  @keyframes dkPulse { 50% { opacity:.35; } }
+  .chip { position:absolute; left:12px; top:12px; font:600 13px/1 'Barlow Condensed',sans-serif; letter-spacing:.12em; text-transform:uppercase; padding:6px 9px 5px; border:1px solid var(--line); background:rgba(0,0,0,.4); }
+  .chip.packed { color:#8fe08a; border-color:rgba(143,224,138,.4); }
+  .chip.flying { color:var(--gold); border-color:rgba(255,194,74,.45); }
+  .chip.down { color:var(--red); border-color:rgba(255,90,60,.45); }
+  .dkInfo { display:flex; flex-direction:column; gap:14px; }
+  .dkBatRow { display:flex; align-items:center; gap:18px; }
+  .dkBatRow svg { width:118px; height:118px; transform:rotate(-90deg); flex:none; }
+  .dkBatRow circle { fill:none; stroke-width:9; }
+  .dkBatRow .trk { stroke:rgba(255,255,255,.08); }
+  #dkRing { stroke-linecap:butt; transition:stroke-dasharray .4s; }
+  #dkBatN { display:block; font:700 54px/0.9 'Barlow Condensed',sans-serif; font-variant-numeric:tabular-nums; }
+  #dkBatT { color:var(--dim); font-size:14px; }
+  .dkStats { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.07); margin:0; }
+  .dkStats div { background:rgba(18,19,20,.92); padding:9px 11px 10px; }
+  .dkStats dt { font-size:10.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); }
+  .dkStats dd { margin:3px 0 0; font:700 22px/1 'Barlow Condensed',sans-serif; font-variant-numeric:tabular-nums; }
+  .dkStats dd.warn { color:var(--gold); } .dkStats dd.bad { color:var(--red); }
+  #dkNote { display:none; font-size:14px; line-height:1.4; color:var(--ink); border-left:3px solid var(--gold); background:rgba(255,194,74,.07); padding:9px 12px; }
+  #dkNote.on { display:block; }
+  .dkBtns { display:flex; gap:8px; margin-top:auto; flex-wrap:wrap; }
+  .dkBtns button { flex:1; min-width:140px; background:rgba(255,255,255,.06); color:var(--ink); border:1px solid var(--line); font:700 19px/1 'Barlow Condensed',sans-serif; letter-spacing:.12em; text-transform:uppercase; padding:14px 18px; cursor:pointer; }
+  .dkBtns button:hover:not(:disabled) { border-color:var(--gold); color:var(--gold); }
+  .dkBtns button.pri { background:var(--gold); color:#241607; border-color:var(--gold); }
+  .dkBtns button.pri:hover:not(:disabled) { background:#ffd377; color:#241607; }
+  .dkBtns button:disabled { opacity:.38; cursor:default; }
+  #dkCards { display:flex; flex-direction:column; gap:8px; }
+  .dkCard { display:grid; grid-template-columns:54px 1fr 150px 150px; align-items:center; gap:16px; padding:12px 14px; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.07); }
+  .dkCard.max { border-color:rgba(255,194,74,.3); }
+  .dkIco { width:54px; height:54px; display:flex; align-items:center; justify-content:center; background:rgba(255,194,74,.08); border:1px solid rgba(255,194,74,.25); }
+  .dkIco svg { width:32px; height:32px; fill:none; stroke:var(--gold); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .dkIco svg .f { fill:var(--gold); stroke:none; }
+  .dkTxt b { font:700 22px/1 'Barlow Condensed',sans-serif; letter-spacing:.04em; }
+  .dkTxt p { margin:3px 0 7px; font-size:13.5px; color:var(--dim); }
+  .pips { display:flex; gap:4px; }
+  .pips i { flex:0 1 26px; min-width:10px; height:5px; background:rgba(255,255,255,.12); }
+  .pips i.on { background:var(--gold); box-shadow:0 0 8px rgba(255,194,74,.45); }
+  .dkVal span { display:block; font:700 24px/1 'Barlow Condensed',sans-serif; }
+  .dkVal em { font-style:normal; font-size:14px; color:#8fe08a; }
+  .dkCard button { background:var(--gold); color:#241607; border:0; font:700 17px/1 'Barlow Condensed',sans-serif; letter-spacing:.06em; padding:12px 10px; cursor:pointer; font-variant-numeric:tabular-nums; }
+  .dkCard button:hover:not(:disabled) { background:#ffd377; }
+  .dkCard button:disabled { background:rgba(255,255,255,.07); color:var(--dim); cursor:default; }
+  .dkCard.max button { background:none; color:var(--gold); border:1px solid rgba(255,194,74,.35); }
+  .dkFoot { margin:12px 0 0; font-size:13px; color:var(--dim); }
+
+  /* ---- drone: its own picture ---- */
+  #dHud { position:fixed; inset:0; z-index:12; pointer-events:none; display:none; font-family:'Barlow Condensed',sans-serif; text-shadow:0 1px 4px rgba(0,0,0,.8); }
+  body.dview #dHud { display:block; }
+  body.dview #farm, body.dview #bars, body.dview #speed, body.dview #hint, body.dview #dead { display:none; }
+  #dStatic, #dDrops { position:absolute; inset:0; width:100%; height:100%; }
+  #dStatic { opacity:0; image-rendering:pixelated; mix-blend-mode:screen; }
+  .dFrame i { position:absolute; width:46px; height:46px; border:2px solid rgba(255,255,255,.75); }
+  .dFrame i:nth-child(1) { left:4%; top:7%; border-right:0; border-bottom:0; } .dFrame i:nth-child(2) { right:4%; top:7%; border-left:0; border-bottom:0; }
+  .dFrame i:nth-child(3) { left:4%; bottom:7%; border-right:0; border-top:0; } .dFrame i:nth-child(4) { right:4%; bottom:7%; border-left:0; border-top:0; }
+  #dCross { position:absolute; left:50%; top:50%; width:30px; height:30px; transform:translate(-50%,-50%); }
+  #dCross::before, #dCross::after { content:''; position:absolute; background:rgba(255,255,255,.7); }
+  #dCross::before { left:0; right:0; top:50%; height:1.5px; margin-top:-.75px; } #dCross::after { top:0; bottom:0; left:50%; width:1.5px; margin-left:-.75px; }
+  #dRec { position:absolute; left:calc(4% + 58px); top:calc(7% + 2px); font:600 16px/1 'Barlow Condensed',sans-serif; letter-spacing:.14em; }
+  #dRec i { display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--red); margin-right:8px; vertical-align:0; animation:dkPulse 1.2s steps(2) infinite; }
+  #dRec span { color:var(--gold); margin-left:10px; }
+  #dComp { position:absolute; left:50%; top:calc(7% - 6px); transform:translateX(-50%); width:340px; text-align:center; }
+  #dTapeW { height:22px; overflow:hidden; -webkit-mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent); mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent); position:relative; }
+  #dTape { position:absolute; left:170px; top:0; display:flex; white-space:nowrap; margin-left:-13px; }
+  #dTape span { width:26px; text-align:center; font:600 15px/22px 'Barlow Condensed',sans-serif; color:rgba(255,255,255,.55); }
+  #dTape span.big { color:#fff; font-weight:700; font-size:17px; }
+  #dHead { display:inline-block; margin-top:2px; font:700 17px/1 'Barlow Condensed',sans-serif; padding:2px 8px; border:1px solid rgba(255,255,255,.5); }
+  #dHead::before { content:''; position:absolute; left:50%; top:-4px; border:5px solid transparent; border-top-color:var(--gold); transform:translateX(-50%); }
+  #dLeft { position:absolute; left:calc(4% + 6px); bottom:calc(7% + 60px); width:190px; }
+  #dRight { position:absolute; right:calc(4% + 6px); bottom:calc(7% + 60px); text-align:right; display:flex; flex-direction:column; gap:10px; }
+  .dLbl, #dRight span { display:block; font:600 12px/1 'Barlow',sans-serif; letter-spacing:.2em; color:rgba(255,255,255,.7); text-transform:uppercase; }
+  #dRight b { font:700 30px/1 'Barlow Condensed',sans-serif; font-variant-numeric:tabular-nums; }
+  .dBat { height:8px; background:rgba(255,255,255,.18); margin:6px 0 4px; }
+  #dBatI { display:block; height:100%; background:#8fe08a; transition:width .3s; }
+  #dBatI.warn { background:var(--gold); } #dBatI.bad { background:var(--red); }
+  #dBatN { font:700 30px/1 'Barlow Condensed',sans-serif; font-variant-numeric:tabular-nums; } #dBatT { margin-left:8px; font-size:16px; color:rgba(255,255,255,.75); }
+  #dSig { display:flex; align-items:flex-end; gap:3px; height:20px; margin:14px 0 4px; }
+  #dSig i { width:6px; background:rgba(255,255,255,.2); } #dSig i.on { background:#fff; }
+  #dSig i:nth-child(1) { height:20%; } #dSig i:nth-child(2) { height:40%; } #dSig i:nth-child(3) { height:60%; } #dSig i:nth-child(4) { height:80%; } #dSig i:nth-child(5) { height:100%; }
+  #dDist { font-size:17px; font-variant-numeric:tabular-nums; }
+  #dWind { position:absolute; left:50%; bottom:calc(7% + 8px); transform:translateX(-50%); display:flex; align-items:center; gap:10px; font:600 19px/1 'Barlow Condensed',sans-serif; }
+  #dWArr { width:0; height:0; border-left:8px solid transparent; border-right:8px solid transparent; border-bottom:20px solid #fff; transform-origin:50% 60%; }
+  #dWind.warn { color:var(--gold); } #dWind.warn #dWArr { border-bottom-color:var(--gold); }
+  #dWind.bad { color:var(--red); } #dWind.bad #dWArr { border-bottom-color:var(--red); }
+  #dWarn { position:absolute; left:50%; top:calc(50% + 70px); transform:translateX(-50%); font:700 24px/1 'Barlow Condensed',sans-serif; letter-spacing:.16em; color:var(--red); padding:6px 14px; border:2px solid var(--red); background:rgba(40,0,0,.35); opacity:0; white-space:nowrap; }
+  #dWarn.on { opacity:1; animation:dkPulse 0.9s steps(2) infinite; }
+  #dLost { position:absolute; left:50%; top:40%; transform:translateX(-50%); font:700 52px/1 'Barlow Condensed',sans-serif; letter-spacing:.2em; opacity:0; white-space:nowrap; }
+  #dLost.on { opacity:1; }
+  #dKeys { position:absolute; left:50%; bottom:14px; transform:translateX(-50%); font:500 13px 'Barlow',sans-serif; color:rgba(255,255,255,.65); white-space:nowrap; }
+  #dKeys kbd { color:#fff; border-color:rgba(255,255,255,.4); }
+  #dNav { position:absolute; top:92px; left:50%; transform:translateX(-50%); text-align:center; font:600 15px 'Barlow Condensed',sans-serif; letter-spacing:.06em; text-shadow:0 1px 7px rgba(0,0,0,.75); display:none; }
+  #dNav.on { display:block; }
+  body.dview #dNav { top:150px; }
+  #dArrow { width:0; height:0; margin:0 auto 5px; border-left:13px solid transparent; border-right:13px solid transparent; border-bottom:30px solid var(--gold); filter:drop-shadow(0 1px 4px rgba(0,0,0,.7)); transform-origin:50% 60%; }
+  @media (max-width:760px) { #dkBox #dkStart.on { grid-template-columns:1fr; } .dkCard { grid-template-columns:44px 1fr; } .dkStats { grid-template-columns:repeat(2,1fr); } }
+  @media (max-width:760px) { #rSide { font-size:12px; } #rBig { font-size:56px; } #pick { grid-template-columns:repeat(2,minmax(0,1fr)); } .keys { display:none; } }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<div id="loading"><h1>Polňačka</h1><div id="bar"><i></i></div><div id="loadTxt">Oráme pole…</div></div>
+
+<div id="menu" class="gone">
+  <div id="brand">Polňačka<small>Pole, lesy, polní cesty. Kdo ti to zaplatí, to už není tvůj problém.</small></div>
+  <div>
+    <div id="modes"><span>Jízda</span><button data-race="" class="on">Volná jízda</button><button data-race="forest">Závod: Les</button><button data-race="field">Závod: Pole</button><button data-race="ford">Závod: Brody a potoky</button></div>
+    <div id="pick"></div>
+    <div id="startRow">
+      <div class="keys"><kbd>W A S D</kbd> jízda <kbd>Mezerník</kbd> ruční <kbd>Shift</kbd> nitro <kbd>C</kbd> kamera <kbd>R</kbd> oprava <kbd>T</kbd> čas +2 h <kbd>F</kbd> vystoupit/nastoupit <kbd>U</kbd> dron <kbd>Pravé tl. / B</kbd> dalekohled <kbd>V</kbd> stěrače <kbd>P</kbd> počasí <kbd>O</kbd> supercela <kbd>Shift+O</kbd> tornádo <kbd>L</kbd> světla <kbd>H</kbd> klakson <kbd>G</kbd> Měsíc <kbd>J</kbd> skok <kbd>Esc</kbd> garáž</div>
+      <div id="opts"><span>Grafika</span><button data-q="mobile">Mobil</button><button data-q="low">Nízká</button><button data-q="mid">Střední</button><button data-q="high">Vysoká</button><button data-q="ultra">Ultra</button><button id="go">Vyjet</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="hud">
+  <div id="farm"><span>Škoda na úrodě</span><br><b id="crop">0 Kč</b><br><span id="stats"></span><br><span>Na účtu (dron)</span> <b id="cash" class="cash">0 Kč</b></div>
+  <div id="bars">
+    <div class="barl"><span>Auto</span><span id="hpn">100 %</span></div><div class="barw" id="hp"><i style="width:100%"></i></div>
+    <div class="barl"><span>Nitro</span></div><div class="barw" id="nos"><i style="width:100%"></i></div>
+  </div>
+  <div id="speed"><b id="kmh">0</b><span>km/h</span></div>
+  <div id="toast"></div>
+  <div id="dead"><b>Motor je v háji</b><span>R opraví auto</span></div>
+  <div id="hint"><kbd>F</kbd>nastoupit</div>
+  <div id="clock"></div>
+  <div id="dNav"><div id="dArrow"></div><span id="dDistN"></span></div>
+</div>
+<div id="bino"></div>
+
+<div id="dHud">
+  <canvas id="dDrops"></canvas><canvas id="dStatic"></canvas>
+  <div class="dFrame"><i></i><i></i><i></i><i></i></div>
+  <div id="dCross"></div>
+  <div id="dRec"><i></i>ČÁP · ŽIVĚ<span id="dZoom">1,0×</span></div>
+  <div id="dComp"><div id="dTapeW"><div id="dTape"></div></div><b id="dHead">S 0°</b></div>
+  <div id="dLeft">
+    <span class="dLbl">Baterie</span><div class="dBat"><i id="dBatI"></i></div><b id="dBatN">100 %</b><span id="dBatT"></span>
+    <div id="dSig"><i></i><i></i><i></i><i></i><i></i></div><span id="dDist"></span>
+  </div>
+  <div id="dRight">
+    <div><span>Výška</span><b id="dAlt">0 m</b></div>
+    <div><span>Rychlost</span><b id="dSpd">0 km/h</b></div>
+    <div><span>Stoupání</span><b id="dVs">0 m/s</b></div>
+  </div>
+  <div id="dWind"><div id="dWArr"></div><span id="dWTxt"></span></div>
+  <div id="dWarn"></div>
+  <div id="dLost">SIGNÁL ZTRACEN</div>
+  <div id="dKeys"><kbd>W A S D</kbd> let <kbd>Mezerník</kbd> nahoru <kbd>Shift</kbd> dolů <kbd>2× W</kbd> turbo <kbd>kolečko</kbd> zoom <kbd>V</kbd> otřít čočku <kbd>Y</kbd> kde je auto <kbd>U</kbd> stanice</div>
+</div>
+
+<div id="deck">
+  <div id="dkBox">
+    <header>
+      <div class="dkLogo"><b>ČÁP</b><span>dronová stanice</span></div>
+      <nav id="dkTabs"><button data-tab="start" class="on">Start</button><button data-tab="up">Vylepšení</button></nav>
+      <div class="dkCash"><span>Na účtu</span><b id="dkCash">0 Kč</b></div>
+      <button id="dkClose" title="Zavřít (U)">U</button>
+    </header>
+    <section id="dkStart" class="on">
+      <div class="dkDrone">
+        <div id="dkState" class="chip packed">V autě</div>
+        <svg viewBox="-115 -115 230 230">
+          <g id="dkRigCharge"><circle r="104" fill="none" stroke="rgba(143,224,138,.35)" stroke-width="1.5" stroke-dasharray="4 7"/></g>
+          <line class="arm" x1="-62" y1="-62" x2="62" y2="62"/><line class="arm" x1="62" y1="-62" x2="-62" y2="62"/>
+          <rect class="bod" x="-28" y="-40" width="56" height="80" rx="12"/>
+          <rect class="gold" x="-28" y="-9" width="56" height="7"/>
+          <circle class="mot" cx="0" cy="-46" r="9"/><circle cx="0" cy="-46" r="4" fill="#0b0c0d"/>
+          <g id="dkProps">
+            <g transform="translate(-62,-62)"><circle class="blur" r="36"/><circle class="mot" r="10"/><line class="prop" x1="-34" y1="0" x2="34" y2="0"/></g>
+            <g transform="translate(62,-62)"><circle class="blur" r="36"/><circle class="mot" r="10"/><line class="prop" x1="0" y1="-34" x2="0" y2="34"/></g>
+            <g transform="translate(-62,62)"><circle class="blur" r="36"/><circle class="mot" r="10"/><line class="prop" x1="-24" y1="-24" x2="24" y2="24"/></g>
+            <g transform="translate(62,62)"><circle class="blur" r="36"/><circle class="mot" r="10"/><line class="prop" x1="24" y1="-24" x2="-24" y2="24"/></g>
+          </g>
+          <circle cx="-62" cy="-74" r="3" fill="#ff3020"/><circle cx="62" cy="-74" r="3" fill="#ff3020"/><circle cx="-62" cy="74" r="3" fill="#30ff60"/><circle cx="62" cy="74" r="3" fill="#30ff60"/>
+        </svg>
+      </div>
+      <div class="dkInfo">
+        <div class="dkBatRow">
+          <svg viewBox="0 0 120 120"><circle class="trk" cx="60" cy="60" r="52"/><circle id="dkRing" cx="60" cy="60" r="52"/></svg>
+          <div><b id="dkBatN">100 %</b><span id="dkBatT">Plně nabito</span></div>
+        </div>
+        <dl class="dkStats">
+          <div><dt>Výdrž</dt><dd id="dkBat">5 min</dd></div>
+          <div><dt>Dosah</dt><dd id="dkRange">3 km</dd></div>
+          <div><dt>Vítr tady</dt><dd id="dkWind">0 m/s</dd></div>
+          <div><dt>Signál</dt><dd id="dkSig">—</dd></div>
+        </dl>
+        <div id="dkNote"></div>
+        <div class="dkBtns">
+          <button id="dkGo" class="pri">Vzlétnout</button>
+          <button id="dkLand">Přistát</button>
+          <button id="dkBack">Zpět k sobě</button>
+          <button id="dkTake" class="pri">Převzít ovládání</button>
+        </div>
+      </div>
+    </section>
+    <section id="dkUp">
+      <div id="dkCards"></div>
+      <p class="dkFoot">Za každý metr rozbité úrody se ti na účet připíše 14 Kč. Nákup se strhne z účtu. „Škoda na úrodě“ vlevo nahoře je celkový účet za pole a nákupem se nesnižuje.</p>
+    </section>
+  </div>
+</div>
+
+<div id="race">
+  <div id="rTop"><b id="rTime">0:00.0</b><span id="rName"></span></div>
+  <div id="rNav"><div id="rArrow"></div><span id="rDist"></span></div>
+  <div id="rNote"></div>
+  <div id="rSide"><b id="rPos">6/6</b><span id="rGate"></span><ol id="rList"></ol></div>
+  <div id="rBig"></div>
+</div>
+<div id="rEnd">
+  <div id="rBox">
+    <h2>V cíli</h2><div id="rSub"></div>
+    <table id="rTable"></table>
+    <div id="rBtns"><button id="rNew">Nová trať</button><button id="rAgain">Znovu stejná</button><button id="rQuit">Do garáže</button></div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+<script type="module" src="js/touch.js"></script>
+</body>
+</html>
