@@ -24,7 +24,14 @@ const aoFrag = n => DEPTH + /* glsl */`
     vec3 p = viewAt(vUv, d);
     float dist = -p.z;
     if (dist < .9 || dist > 90.) return;
-    vec3 n = normalize(cross(dFdx(p), dFdy(p)));
+    // The surface's facing from the depth of the neighbouring pixels. Far off, at a grazing angle (a road
+    // going down a hill), two neighbours can hold the same depth and the cross product comes out zero:
+    // normalising that gives 0 on a PC but NaN on an iPhone, and NaN came out as black smudges. No
+    // facing, no contact shadow.
+    vec3 cr = cross(dFdx(p), dFdy(p));
+    float cl = length(cr);
+    if (!(cl > 1e-12)) return;
+    vec3 n = cr / cl;
     float a = ign(gl_FragCoord.xy) * 6.283, occ = 0., reach = R / (dist * 2. * uTan.y);
     for (int i = 0; i < N; i++) {
       float t = (float(i) + .5) / float(N), r = sqrt(t) * reach, b = a + float(i) * 2.399;
@@ -33,7 +40,8 @@ const aoFrag = n => DEPTH + /* glsl */`
       float l = length(q);
       occ += max(dot(n, q / max(l, .001)) - .12, 0.) * (1. - smoothstep(R * .5, R * 1.6, l));
     }
-    gl_FragColor = vec4(vec3(1. - min(1., occ * 2.1 / float(N)) * (1. - smoothstep(55., 90., dist))), 1.);
+    float ao = 1. - min(1., occ * 2.1 / float(N)) * (1. - smoothstep(55., 90., dist));
+    gl_FragColor = vec4(vec3(ao >= 0. && ao <= 1. ? ao : 1.), 1.);   // (a stray NaN fails both tests: no shadow)
   }`;
 // a 4x4 box that doesn't blur across depth edges
 const BLUR_FRAG = DEPTH + /* glsl */`
@@ -242,10 +250,13 @@ export class ScenePass extends Pass {
     const { scene, camera, q } = this, gl = renderer.getContext(), U = this.U;
     this.frame++;
     camera.updateMatrixWorld();
-    const mask = camera.layers.mask;
+    // The camera sees layers 0, 1 and 2 (main.js). It is put back to exactly that, never to a saved copy:
+    // once a draw failed half way (it happened on an iPhone) a saved mask was the broken one, and from then
+    // on the camera saw only particles: no ground, no car, just the clouds and the haze over everything.
+    const mask = MAIN_LAYERS;
     camera.layers.disable(2);            // particles come after, with the depth buffer in hand
-    renderer.setRenderTarget(this.rt); renderer.clear(); renderer.render(scene, camera);
-    camera.layers.mask = mask;
+    try { renderer.setRenderTarget(this.rt); renderer.clear(); renderer.render(scene, camera); }
+    finally { camera.layers.mask = mask; }
 
     U.uNear.value = camera.near; U.uFar.value = camera.far;
     const ty = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
@@ -280,11 +291,11 @@ export class ScenePass extends Pass {
     renderer.autoClear = false; renderer.shadowMap.autoUpdate = false;
     fx.mat.uniforms.uNear.value = camera.near; fx.mat.uniforms.uFar.value = camera.far;
     camera.layers.set(2);
-    renderer.setRenderTarget(writeBuffer); renderer.render(scene, camera);
-    camera.layers.mask = mask;
-    renderer.autoClear = auto; renderer.shadowMap.autoUpdate = sh;
+    try { renderer.setRenderTarget(writeBuffer); renderer.render(scene, camera); }
+    finally { camera.layers.mask = mask; renderer.autoClear = auto; renderer.shadowMap.autoUpdate = sh; }
     if (q.adapt) { this.lumM.uniforms.tColor.value = this.rt.texture; this.measure(gl); }
   }
   dispose() { for (const r of [this.rt, this.aoRT, this.ao2RT, this.shaftRT, this.lumRT]) r.dispose(); this.quad.dispose(); }
 }
 const tv = new THREE.Vector3();
+const MAIN_LAYERS = (1 << 0) | (1 << 1) | (1 << 2);   // the main camera's layers: everything, tufts, particles
