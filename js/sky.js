@@ -62,6 +62,20 @@ export class HazeFog extends THREE.Fog {
   get edge() { return this.far; } set edge(v) { this.far = v; }
 }
 export function patchFog() {
+  // The sun's shadow map only covers a square round the car (smaller on a phone). three cuts its shadows
+  // off hard at that square's edge, so a tree's long evening shadow ended in a straight dark line across
+  // the road that drove along with you. Here they fade out toward the edge instead (flora.js does the same).
+  const sp = THREE.ShaderChunk.shadowmap_pars_fragment;
+  if (sp.includes('float getShadow(') && sp.includes('vec2 cubeToUV(')) {
+    THREE.ShaderChunk.shadowmap_pars_fragment = sp.replace('float getShadow(', 'float getShadowHard(').replace('vec2 cubeToUV(', /* glsl */`
+    float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowBias, float shadowRadius, vec4 shadowCoord ) {
+      vec2 sq = shadowCoord.xy / shadowCoord.w, e = min(sq, 1. - sq);
+      float inside = smoothstep(0., .14, min(e.x, e.y));
+      if (inside <= 0.) return 1.;
+      return mix(1., getShadowHard(shadowMap, shadowMapSize, shadowBias, shadowRadius, shadowCoord), inside);
+    }
+    vec2 cubeToUV(`);
+  }
   THREE.ShaderChunk.fog_pars_fragment = THREE.ShaderChunk.fog_pars_fragment.replace('#ifdef USE_FOG', '#ifdef USE_FOG\n' + HAZE);
   // sun-aware fog: toward the sun the haze takes the sun's colour, matching the sky's horizon
   THREE.ShaderChunk.fog_fragment = /* glsl */`

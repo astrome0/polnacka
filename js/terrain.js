@@ -282,13 +282,15 @@ export class Terrain {
           if (uShadowOn > .5) {
             vec4 sc = uShadowMat * vec4(modelMatrix[3].xyz + iA.xyz + vec3(0., .35, 0.), 1.);
             vec3 q = sc.xyz / sc.w;
-            if (q.x > .01 && q.x < .99 && q.y > .01 && q.y < .99 && q.z < 1.) {
+            vec2 qe = min(q.xy, 1. - q.xy);
+            float qin = smoothstep(.01, .14, min(qe.x, qe.y));   // fade out toward the map's edge, no hard line
+            if (qin > 0. && q.z < 1.) {
               float s = 0.;
               s += step(q.z - .0007, unpackRGBAToDepth(textureLod(uShadowMap, q.xy + vec2(.0035, .0012), 0.)));
               s += step(q.z - .0007, unpackRGBAToDepth(textureLod(uShadowMap, q.xy - vec2(.0035, .0012), 0.)));
               s += step(q.z - .0007, unpackRGBAToDepth(textureLod(uShadowMap, q.xy + vec2(-.0012, .0035), 0.)));
               s += step(q.z - .0007, unpackRGBAToDepth(textureLod(uShadowMap, q.xy + vec2(.0012, -.0035), 0.)));
-              litSun = s * .25;
+              litSun = mix(1., s * .25, qin);
             }
           }
           litVertex(wp.xyz, vec3(0., 1., 0.), position.y * 1.1);
