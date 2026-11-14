@@ -801,7 +801,8 @@ function setQuality(n) {
   traffic.count = Q.traffic; traffic.farmers = Q.tractors;
 }
 function saveMore(stage) {
-  if (stage === 1) { sky.sun.castShadow = false; traffic.count = 0; toast('Úsporný režim 1: bez stínů a bez provozu'); }
+  // (contact shadows go too: one of the dearest passes on a phone, and the one an iPhone drew black smudges with)
+  if (stage === 1) { sky.sun.castShadow = false; traffic.count = 0; scenePass.q = { ...scenePass.q, ao: false }; toast('Úsporný režim 1: bez stínů a bez provozu'); }
   else if (stage === 2) { clouds.res *= 0.6; clouds.steps = Math.max(5, clouds.steps - 3); clouds.setQuality({ cloud: [clouds.res, clouds.steps] }); rain.setCount(300); hail.setCount(100); toast('Úsporný režim 2: levnější mraky a déšť'); }
   else { drsScale = 0.4; resize(); toast('Úsporný režim 3: nejnižší rozlišení'); }
 }

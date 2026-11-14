@@ -28,10 +28,19 @@ const aoFrag = n => DEPTH + /* glsl */`
     // going down a hill), two neighbours can hold the same depth and the cross product comes out zero:
     // normalising that gives 0 on a PC but NaN on an iPhone, and NaN came out as black smudges. No
     // facing, no contact shadow.
-    vec3 cr = cross(dFdx(p), dFdy(p));
+    vec3 dx = dFdx(p), dy = dFdy(p);
+    // On an edge where the depth jumps (the crest of a hill, with the road beyond it dropping away) the
+    // neighbours belong to two surfaces and the facing comes out wrong: the far road was shaded as if
+    // buried, a black band across it. More pixels sit on such edges at a low resolution, which is what
+    // a hot phone drops to. No contact shadow on an edge.
+    if (max(abs(dx.z), abs(dy.z)) > dist * .04) return;
+    vec3 cr = cross(dx, dy);
     float cl = length(cr);
     if (!(cl > 1e-12)) return;
     vec3 n = cr / cl;
+    if (dot(n, p) > 0.) n = -n;          // always facing the camera
+    // seen almost edge-on (the road far ahead, a slope going away) the facing is unreliable: fade out
+    float facing = smoothstep(.06, .22, dot(n, -p / dist));
     float a = ign(gl_FragCoord.xy) * 6.283, occ = 0., reach = R / (dist * 2. * uTan.y);
     for (int i = 0; i < N; i++) {
       float t = (float(i) + .5) / float(N), r = sqrt(t) * reach, b = a + float(i) * 2.399;
@@ -40,7 +49,7 @@ const aoFrag = n => DEPTH + /* glsl */`
       float l = length(q);
       occ += max(dot(n, q / max(l, .001)) - .12, 0.) * (1. - smoothstep(R * .5, R * 1.6, l));
     }
-    float ao = 1. - min(1., occ * 2.1 / float(N)) * (1. - smoothstep(55., 90., dist));
+    float ao = 1. - min(1., occ * 2.1 / float(N)) * (1. - smoothstep(55., 90., dist)) * facing;
     gl_FragColor = vec4(vec3(ao >= 0. && ao <= 1. ? ao : 1.), 1.);   // (a stray NaN fails both tests: no shadow)
   }`;
 // a 4x4 box that doesn't blur across depth edges
@@ -53,7 +62,9 @@ const BLUR_FRAG = DEPTH + /* glsl */`
       float k = 1. - smoothstep(.0, 1., abs(zOf(texture2D(tDepth, uv).r) - z) / (1. + abs(z) * .03));
       s += texture2D(tAO, uv).r * k; w += k;
     }
-    gl_FragColor = vec4(vec3(s / max(w, .001)), 1.);
+    // A pixel whose depth matches none of its neighbours (a thin strip of far road just over a hill's crest,
+    // common at a low resolution) has no weight to average: that used to come out 0, full shade, a black band.
+    gl_FragColor = vec4(vec3(w > .05 ? s / w : 1.), 1.);
   }`;
 // Sun shafts at quarter size: from each pixel walk towards the sun and count the sky that shows,
 // and how much of it the clouds let through, so rays fall through the gaps.
