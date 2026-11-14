@@ -82,6 +82,26 @@ body.touch #clock { right: auto; left: 50%; transform: translateX(-50%); }
 #touch.edit .tbtn.sel { outline: 2px solid #ffc468; background: rgba(255, 190, 90, 0.35); }
 .tbtn.x8 { top: calc(62px + env(safe-area-inset-top)); right: calc(374px + env(safe-area-inset-right)); display: none !important; }
 #touch.more .tbtn.x8 { display: grid !important; }
+.tbtn.x9 { top: calc(62px + env(safe-area-inset-top)); right: calc(426px + env(safe-area-inset-right)); display: none !important; }
+#touch.more .tbtn.x9 { display: grid !important; }
+.tbtn.x10 { top: calc(62px + env(safe-area-inset-top)); right: calc(478px + env(safe-area-inset-right)); display: none !important; }
+#touch.more .tbtn.x10 { display: grid !important; }
+#touch[data-mode="foot"] .tbtn.x9, #touch[data-mode="foot"] .tbtn.x10 { display: none !important; }
+.tbtn.x10[data-state="0"] { opacity: 0.55; }
+.tbtn.x10[data-state="2"] svg { transform: scaleY(-1); }
+
+/* tilt control: wheel button in the top row, "centre" only while it is on, the arrow (and pedal) buttons give way to a bar */
+.tbtn.tilt { right: calc(270px + env(safe-area-inset-right)); }
+.tbtn.act { background: rgba(255, 190, 90, 0.55); border-color: #ffc468; }
+.tbtn.tctr { display: none !important; left: calc(24px + env(safe-area-inset-left)); bottom: calc(26px + env(safe-area-inset-bottom)); width: 64px; height: 64px; }
+#touch.tilting[data-mode="drive"] .tbtn.tctr { display: grid !important; }
+#touch.tilting[data-mode="drone"] .tbtn.tctr { display: grid !important; left: auto; bottom: auto; right: calc(218px + env(safe-area-inset-right)); top: calc(10px + env(safe-area-inset-top)); width: 44px; height: 44px; }
+#touch[data-mode="drone"] #tiltbar { bottom: calc(58px + env(safe-area-inset-bottom)); }
+#touch.tilting .tbtn.steerL, #touch.tilting .tbtn.steerR { display: none !important; }
+#touch.tilting.pedals .tbtn.gas, #touch.tilting.pedals .tbtn.brake { display: none !important; }
+#tiltbar { display: none; position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom)); width: 160px; height: 6px; margin-left: -80px; border-radius: 3px; background: rgba(255, 255, 255, 0.22); pointer-events: none; }
+#tiltbar i { position: absolute; left: 50%; top: -5px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: #ffc468; }
+#touch.tilting[data-mode="drive"] #tiltbar, #touch.tilting[data-mode="drone"] #tiltbar { display: block; }
 .tpanel {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3;
   display: flex; align-items: center; gap: 8px; padding: 8px 10px; pointer-events: auto;
