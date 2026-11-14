@@ -257,6 +257,9 @@ function droneInput() {
   i.x = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
   i.z = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
   i.y = (keys.has('Space') ? 1 : 0) - (keys.has('ShiftLeft') || keys.has('ShiftRight') || keys.has('KeyC') ? 1 : 0);
+  // the phone tilted (js/touch.js): sideways slides, leaning flies forward / back; the stick still wins
+  const t = window.tilt;
+  if (t?.on) { if (!i.x) i.x = -t.steer; if (t.pedals && !i.z) i.z = t.lean; }
   // turbo: W tapped twice, held for as long as W stays down
   if (!keys.has('KeyW')) droneTurbo = false;
   i.turbo = droneTurbo;
@@ -741,6 +744,11 @@ function readInput(dt) {
     const a = pad.axes[0]; if (Math.abs(a) > 0.12) steer = -a;
     th = Math.max(th, pad.buttons[7]?.value || 0); br = Math.max(br, pad.buttons[6]?.value || 0);
     hand = hand || pad.buttons[0]?.pressed; nitro = nitro || pad.buttons[2]?.pressed;
+  }
+  const t = window.tilt;                               // phone tilted like a wheel (js/touch.js), analogue −1…1
+  if (t?.on) {
+    steer = t.steer;
+    if (t.pedals) { th = Math.max(th, Math.max(0, t.lean)); br = Math.max(br, Math.max(0, -t.lean)); }
   }
   const spd = v.forwardSpeed;
   v.wantsReverse = false;
@@ -1303,4 +1311,4 @@ document.querySelector('.card').classList.add('on');
 requestAnimationFrame(frame);
 
 // test hook: the Browser pane throttles rAF, so tests pump frames by hand
-window.game = { saveMore, lookBy, drone, deck, setDeck, clouds, tornadoes, torView, race, beginRace, fxaa, setQuality, scenePass, get mirror() { return { rt: mirrorRT, cam: mirrorCam, mat: mirrorMat, renderMirror, Q }; }, G, keys, tick, render, terrain, walker, getOut, getIn, rain, cycleWeather, weather, traffic, sky, renderer, camera, scene, setHour, setWeather, fx, pick, start, toMenu, THREE };
+window.game = { saveMore, lookBy, toast, drone, deck, setDeck, clouds, tornadoes, torView, race, beginRace, fxaa, setQuality, scenePass, get mirror() { return { rt: mirrorRT, cam: mirrorCam, mat: mirrorMat, renderMirror, Q }; }, G, keys, tick, render, terrain, walker, getOut, getIn, rain, cycleWeather, weather, traffic, sky, renderer, camera, scene, setHour, setWeather, fx, pick, start, toMenu, THREE };

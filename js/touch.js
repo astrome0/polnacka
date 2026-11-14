@@ -77,6 +77,89 @@ function init() {
   tapBtn('@clock', 'small x6', all, 'KeyT', 'Time +2 h');
   tapBtn('@sound', 'small x7', all, 'KeyM', 'Sound');
   button('@move', 'small x8', all, () => { releaseAll(); layout.start(); }, null, 'Move the buttons');
+
+  // ───────── tilt control (phone as a steering wheel) ─────────
+  // Gravity from the motion sensors says how far the phone is turned like a wheel and how far it leans forward.
+  // main.js reads window.tilt: steer −1…1 (left is +, the same as the A key) and, while pedals is on,
+  // lean −1…1 (forward is +). In the car lean is gas / brake; the drone flies forward / back on lean and
+  // slides sideways on steer (turning it stays on the finger). iOS only gives sensors to https pages after a tap.
+  const tilt = window.tilt = { on: false, steer: 0, lean: 0, pedals: false };
+  const TILT_FULL = 32, TILT_DEAD = 2.5;             // degrees of turn for full lock, and the quiet middle
+  const LEAN_FULL = 20, LEAN_DEAD = 4;               // degrees of lean for full pedal, and its quiet middle
+  const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } } };
+  let flip = store.get('polnacka-tilt-flip') === '1', zero = 0, roll = 0, haveRoll = false, listening = false;
+  // lean pedals: 0 off (the gas and brake buttons stay) · 1 on · 2 on, the other way round
+  let pedalMode = Number(store.get('polnacka-tilt-pedals') ?? 1) || 0, pitch = 0, zeroP = 0;
+  const bar = el('div'); bar.id = 'tiltbar'; const dot = el('i'); bar.append(dot); root.append(bar);
+  const attitude = (e) => {
+    const a = e.accelerationIncludingGravity; if (!a || a.x == null || a.y == null) return null;
+    const o = ((Math.round((screen.orientation?.angle ?? window.orientation ?? 90) / 90) * 90) % 360 + 360) % 360;
+    // gravity "up" in screen terms: sx to the right, sy up
+    const [sx, sy] = o === 90 ? [-a.y, a.x] : o === 270 ? [a.y, -a.x] : o === 180 ? [-a.x, -a.y] : [a.x, a.y];
+    const h = Math.hypot(sx, sy);
+    if (h < 2) return null;                          // phone flat on its back: no wheel angle
+    return {
+      r: Math.atan2(sx, sy) * 180 / Math.PI,         // + when the phone turns left (counter-clockwise)
+      p: Math.atan2(a.z || 0, h) * 180 / Math.PI,    // + when the top leans away from you
+    };
+  };
+  const shape = (x, dead, full) => Math.sign(x) * Math.min(1, Math.max(0, Math.abs(x) - dead) / (full - dead));
+  const onMotion = (e) => {
+    const k = attitude(e); if (!k) return;
+    let d = k.r - roll; if (d > 180) d -= 360; if (d < -180) d += 360;
+    roll = haveRoll ? roll + d * 0.4 : k.r;          // a little smoothing
+    pitch = haveRoll ? pitch + (k.p - pitch) * 0.4 : k.p;
+    haveRoll = true;
+    if (!tilt.on) return;
+    let x = roll - zero; if (x > 180) x -= 360; if (x < -180) x += 360;
+    const s = shape(x, TILT_DEAD, TILT_FULL);
+    tilt.steer = Math.sign(s) * Math.abs(s) ** 1.25 * (flip ? -1 : 1);
+    tilt.lean = tilt.pedals ? shape(pitch - zeroP, LEAN_DEAD, LEAN_FULL) * (pedalMode === 2 ? -1 : 1) : 0;
+    dot.style.transform = `translate(${(-tilt.steer * 70).toFixed(1)}px, ${(-tilt.lean * 14).toFixed(1)}px)`;
+  };
+  const center = () => { zero = roll; zeroP = pitch; };
+  const setPedals = () => {
+    tilt.pedals = tilt.on && pedalMode > 0; if (!tilt.pedals) tilt.lean = 0;
+    root.classList.toggle('pedals', tilt.pedals);
+  };
+  const setTilt = (on) => {
+    tilt.on = on; if (!on) { tilt.steer = 0; tilt.lean = 0; }
+    root.classList.toggle('tilting', on); tiltBtn.classList.toggle('act', on);
+    setPedals();
+    if (on) center();
+  };
+  const say = (m) => window.game?.toast?.(m);
+  const toggleTilt = async () => {
+    if (layout.editing) return;
+    if (tilt.on) { setTilt(false); say('Náklon vypnutý'); return; }
+    if (!window.isSecureContext) { say('Náklon jde jen přes https'); return; }
+    if (typeof DeviceMotionEvent === 'undefined') { say('Tenhle prohlížeč nemá pohybové senzory'); return; }
+    try {
+      if (typeof DeviceMotionEvent.requestPermission === 'function') {
+        const r = await DeviceMotionEvent.requestPermission();
+        if (r !== 'granted') { say('Pohyb nepovolen. Zavři Safari úplně a zkus znovu'); return; }
+      }
+    } catch (err) { say('Senzory: ' + (err?.message || err)); return; }
+    if (!listening) { addEventListener('devicemotion', onMotion); listening = true; }
+    haveRoll = false;
+    setTimeout(() => {                               // wait for the first reading, then hold it as "straight"
+      if (!haveRoll) { say('Senzory zatím nic neposílají'); return; }
+      setTilt(true); say(tilt.pedals ? 'Náklon zapnutý: zatáčení + plyn' : 'Náklon zapnutý: zatáčení');
+    }, 350);
+  };
+  const tiltBtn = button('@wheel', 'small tilt', 'drive drone', null, null, 'Tilt control');
+  // iOS asks for the sensors only from the end of a touch (touchend / click), never from pointerdown
+  let lastTouchEnd = 0;
+  tiltBtn.addEventListener('touchend', (e) => { e.preventDefault(); lastTouchEnd = performance.now(); toggleTilt(); });
+  tiltBtn.addEventListener('click', () => { if (performance.now() - lastTouchEnd > 800) toggleTilt(); });
+  button('@target', 'small tctr', 'drive drone', center, null, 'Centre the tilt here');
+  button('@turn', 'small x9', 'drive drone', () => { flip = !flip; store.set('polnacka-tilt-flip', flip ? '1' : '0'); }, null, 'Flip tilt direction');
+  const pedalBtn = button('@pedal', 'small x10', 'drive drone', () => {
+    pedalMode = (pedalMode + 1) % 3; store.set('polnacka-tilt-pedals', String(pedalMode));
+    pedalBtn.dataset.state = String(pedalMode); setPedals();
+    window.game?.toast?.(['Plyn náklonem vypnutý', 'Plyn náklonem: dopředu = plyn', 'Plyn náklonem: obráceně'][pedalMode]);
+  }, null, 'Lean pedals: off / on / reversed');
+  pedalBtn.dataset.state = String(pedalMode);
   document.body.append(root);
   layout.refresh();
 
