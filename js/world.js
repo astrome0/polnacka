@@ -398,6 +398,8 @@ export function trackDist(x, z) { locate(x, z); return L.pathD; }
 export function surface(x, z, baked = false) {
   locate(x, z);
   S.panel = false;       // concrete drives like a track but marks like asphalt
+  S.mud = 0;             // 0..1: how deep the going is (forest tracks hold water in the shade)
+  S.mudV = 0; S.pud = 0; S.rut = 0;   // for the ground shader: mud cover with soft edges, standing water, rut depth
   const kindCell = cellKind(L.i, L.j);
   const edge = Math.min(L.du, L.dv), wob = noise(x * 0.09, z * 0.09);
   const fine = noise(x * 0.62, z * 0.62), big = fbm(x * 0.021 + 9, z * 0.021, 3);
@@ -502,6 +504,23 @@ export function surface(x, z, baked = false) {
         if (cg > 0) blend(92, 128, 52, cg * sstep(-0.3, 0.25, big + 0.25));
       }
       if (m > 0.55) { S.kind = KIND.PATH; S.panel = L.style === 2; S.crop = 0; S.mu = L.style === 2 ? 1.0 : 0.88; S.rough = L.style === 2 ? 0.004 : 0.012; S.drag = 0; }
+      // mud: stretches of a forest track, tens of metres long, where the ground never dries. Darkest and
+      // deepest in the ruts; the middle (the grass mane) stays firmer, so a careful line can skirt it
+      if (k === KIND.FOREST && L.style !== 2) {
+        const pool = sstep(-0.02, 0.15, fbm(x * 0.034 + 5, z * 0.034 - 8, 2) + 0.12 * wob);
+        const mud = pool * sstep(0.1, 0.85, m) * (1 - 0.55 * (1 - sstep(0.18, 0.7, pd + wob * 0.2)));
+        if (mud > 0.02) {
+          // the colour is only the base: the ground shader makes it wet, lumpy and rutted (uMud)
+          blend(58 + fine * 14 + big * 10, 42 + fine * 10 + big * 7, 28 + fine * 7, Math.min(1, mud * 1.2));
+          // two ruts a wheel-track apart, worn deeper where the mud is deepest
+          const rut = Math.exp(-(((pd - 0.92 + wob * 0.06) / 0.32) ** 2));
+          // standing water: pools that fill the ruts first and spread over the whole track where it's deepest
+          const pool2 = fbm(x * 0.09 + 2, z * 0.09 + 7, 2) + 0.08 * fine;
+          S.mudV = mud; S.rut = rut * mud;
+          S.pud = sstep(0.1, 0.24, pool2 + rut * 0.2) * sstep(0.4, 0.85, mud);
+          if (m > 0.55) { S.mud = mud; S.mu *= 1 - 0.1 * mud; S.rough = Math.max(S.rough, 0.04 * mud); }
+        }
+      }
     }
   }
   if (S.kind !== KIND.PATH && pd < 5.5 && pd > 1.8 && k !== KIND.FOREST) S.crop = 1;

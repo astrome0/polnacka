@@ -173,6 +173,26 @@ const SPAWN = (() => {
   return { x: 0, z: 0 };
 })();
 
+// Every load starts somewhere else: a random spot on a farm track or a road's gravel shoulder, at
+// most 1 km from the usual start. Not in mud or water, not on a slope, and with track ahead of it.
+function randomStart() {
+  for (let tries = 0; tries < 600; tries++) {
+    const a = Math.random() * Math.PI * 2, r = 1000 * Math.sqrt(Math.random());
+    const x = SPAWN.x + Math.cos(a) * r, z = SPAWN.z + Math.sin(a) * r, s = surface(x, z);
+    if (s.kind !== KIND.PATH || s.mud > 0.05) continue;
+    if (waterAt(x, z).on) continue;
+    let flat = true;
+    for (const [dx, dz] of [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5]]) if (Math.abs(ground(x + dx, z + dz, 999) - ground(x, z, 999)) > 0.3) flat = false;
+    if (!flat) continue;
+    const heading = headingAlongRoad(x, z);
+    let ahead = 0;
+    for (let d = 3; d <= 24; d += 3) { const q = surface(x + Math.sin(heading) * d, z + Math.cos(heading) * d); if (q.kind === KIND.PATH || q.kind === KIND.ROAD) ahead++; }
+    if (ahead < 6) continue;
+    return { x, z, heading };
+  }
+  return { x: SPAWN.x, z: SPAWN.z, heading: headingAlongRoad(SPAWN.x, SPAWN.z) };
+}
+
 function headingAlongRoad(x, z) {
   // try a ring of directions: the one that stays on the road longest
   let best = 0, bestN = -1;
@@ -464,6 +484,9 @@ const stampAcc = { t: 0 };
 function feelFrame(dt) {
   const v = G.veh, c = G.car, speed = v.v.length();
   let gravelAmt = 0, skid = 0, cropAmt = 0, onAsphalt = false, wading = 0;
+  // stuck in the mud: say so once, with the way out
+  G.mudT = (G.mudT || 0) - dt;
+  if (G.mudT <= 0 && !G.onFoot && speed < 2.2 && v.input.throttle > 0.4 && v.wheels.filter(w => (w.dig || 0) > 0.75).length >= 2) { G.mudT = 14; toast('Zapadl jsi v bahně! Uber plyn, nech to vyklouznout a zkus couvat'); }
   stampAcc.t += dt;
   const doStamp = stampAcc.t > 0.033;
   if (doStamp) stampAcc.t = 0;
@@ -481,6 +504,19 @@ function feelFrame(dt) {
     skid = Math.max(skid, slip - 1.5);
     gravelAmt += w.surf.rough * 3 + (k === KIND.ROAD ? 0 : k === KIND.PATH ? 0.05 : 0.02);
     if (w.surf.crop > 0.5) cropAmt += 0.25;
+    if (w.mud > 0.15) {
+      // tyres leave their print in mud, a wheel's width, deeper when it spins
+      if (doStamp && (speed > 0.4 || slip > 0.8)) terrain.stamp(w.gx, w.gz, v.spec.wheel.w * 0.7, 150 + Math.min(105, slip * 30 + (w.dig || 0) * 80), false, true);
+      // a spinning tyre flings wet clods back and up, a rolling one squelches a little out to the sides
+      const fling = Math.min(1, Math.max(slip - 0.6, 0) / 3.5) + Math.min(0.35, speed / 30);
+      if (Math.random() < dt * 55 * fling * w.mud) {
+        const bx = sp.x - Math.sign(w.omega || 1) * tmpV.set(0, 0, 1).applyQuaternion(v.q).x * slip * 1.4, bz = sp.z - Math.sign(w.omega || 1) * tmpV.z * slip * 1.4;
+        fx.clod(w.gx, w.gy + 0.15, w.gz, bx, 1.5 + slip * 0.6, bz, [0.075, 0.055, 0.036]);
+      }
+      // and the car wears it: mud up the flanks fast, now and then a splat on the screen when spinning
+      c.dirt.value = Math.min(1, c.dirt.value + dt * w.mud * (0.02 + Math.min(0.06, slip * 0.012)));
+      if (slip > 2.2 && w.front && Math.random() < dt * 1.5 * w.mud) G.dmg.mudOnGlass(2);
+    }
     const col = DUST[k] || DUST[KIND.PATH];
     const moving = speed > 2 ? Math.min(1, speed / 16) : 0;
     const asphalt = k === KIND.ROAD || w.surf.panel;
@@ -496,9 +532,11 @@ function feelFrame(dt) {
         if (doStamp) terrain.stamp(w.gx, w.gz, 0.3, 210, true);
       }
     } else {
-      if (Math.random() < (dt * 40 * moving + slip * dt * 8) * (1 - 0.88 * G.wet)) fx.dust(w.gx, w.gy + 0.08, w.gz, sp.x, 0, sp.z, col, 1 + Math.min(1.2, slip * 0.1));
+      // (wet mud raises no dust and takes its own deep print, see above, not the dry gravel one)
+      const inMud = w.mud > 0.15;
+      if (!inMud && Math.random() < (dt * 40 * moving + slip * dt * 8) * (1 - 0.88 * G.wet)) fx.dust(w.gx, w.gy + 0.08, w.gz, sp.x, 0, sp.z, col, 1 + Math.min(1.2, slip * 0.1));
       // gravel doesn't tear up, it just takes the print of the tyre, deeper when it's spinning
-      if (k === KIND.PATH) fx.track(w, w.gx, w.gy, w.gz, v.spec.wheel.w / 2, Math.min(0.6, 0.36 + slip * 0.045)); else w.print = null;
+      if (k === KIND.PATH && !inMud) fx.track(w, w.gx, w.gy, w.gz, v.spec.wheel.w / 2, Math.min(0.6, 0.36 + slip * 0.045)); else w.print = null;
       if (doStamp && speed > 0.8) addCrop(terrain.stamp(w.gx, w.gz, 0.5 + Math.min(0.3, slip * 0.04), 255));
     }
     const ch = CHAFF[k];
@@ -670,8 +708,8 @@ addEventListener('keydown', e => {
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   if (G.mode === 'menu') {
     if (tuning?.open) { if (e.code === 'Escape') tuning.close(); return; }
-    if (e.code === 'ArrowLeft' || e.code === 'KeyA') pick((G.carIdx + 3) % 4);
-    if (e.code === 'ArrowRight' || e.code === 'KeyD') pick((G.carIdx + 1) % 4);
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') pick((G.carIdx + CARS.length - 1) % CARS.length);
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') pick((G.carIdx + 1) % CARS.length);
     if (e.code === 'Enter' || e.code === 'Space') start();
     return;
   }
@@ -774,8 +812,10 @@ function readInput(dt) {
 // ---- menu ---------------------------------------------------------------------------------
 function buildMenu() {
   const pickEl = $('pick');
-  pickEl.innerHTML = CARS.map((c, i) => `<button class="card" data-i="${i}"><em>${c.tag}</em><b>${c.name}</b><p>${c.blurb}</p></button>`).join('');
-  pickEl.addEventListener('click', e => { const b = e.target.closest('.card'); if (b) pick(+b.dataset.i); });
+  // a new car keeps its NEW tag; the "try it" button only until you've picked it once
+  pickEl.innerHTML = CARS.map((c, i) => `<button class="card${c.isNew ? ' fresh' : ''}" data-i="${i}">${c.isNew ? '<span class="new">NEW</span>' : ''}<em>${c.tag}</em><b>${c.name}</b><p>${c.blurb}</p>${c.isNew && !TRIED.has(c.id) ? '<span class="try" data-try>Vyzkoušej hned!</span>' : ''}</button>`).join('');
+  // "try now" on a new car's card picks it and drives off straight away
+  pickEl.addEventListener('click', e => { const b = e.target.closest('.card'); if (!b) return; pick(+b.dataset.i); if (e.target.closest('[data-try]')) start(); });
   $('go').addEventListener('click', start);
   document.querySelectorAll('#modes [data-race]').forEach(b => b.addEventListener('click', () => {
     G.raceType = b.dataset.race;
@@ -812,6 +852,18 @@ function saveMore(stage) {
   else { drsScale = 0.4; resize(); toast('Úsporný režim 3: nejnižší rozlišení'); }
 }
 function repaintMirror() { G.car.cab.mirrorPlane.material = new THREE.MeshStandardMaterial({ color: 0xe8ecf0, metalness: 1, roughness: 0.03, envMap: env, envMapIntensity: 1.3 }); }
+// Only driving off in a new car counts as a try (Vyjet or its own button), not just picking its card.
+// After the first drive the button goes for good; the NEW tag stays.
+const TRIES_KEY = 'polnacka-tries', TRY_LIMIT = 1;
+let TRIES = {};
+try { TRIES = JSON.parse(localStorage.getItem(TRIES_KEY)) || {}; } catch {}
+const TRIED = { has: id => (TRIES[id] || 0) >= TRY_LIMIT };
+function markTried(i) {
+  if (!CARS[i].isNew || TRIED.has(CARS[i].id)) return;
+  TRIES[CARS[i].id] = (TRIES[CARS[i].id] || 0) + 1;
+  try { localStorage.setItem(TRIES_KEY, JSON.stringify(TRIES)); } catch {}
+  if (TRIED.has(CARS[i].id)) document.querySelector(`.card[data-i="${i}"] [data-try]`)?.remove();
+}
 function pick(i) {
   document.querySelectorAll('.card').forEach((c, k) => c.classList.toggle('on', k === i));
   const h = G.home;
@@ -821,6 +873,7 @@ function pick(i) {
 function start() {
   audio.start();
   G.mode = 'play'; $('menu').classList.add('gone'); $('hud').classList.add('on');
+  markTried(G.carIdx);
   G.cam = 0; updateCabinView();
   head.vLast.copy(G.veh.v);
   lockPointer();
@@ -1298,7 +1351,7 @@ function render() {
 // ---- go -------------------------------------------------------------------------------------
 buildMenu();
 setAir();
-G.home = { x: SPAWN.x, z: SPAWN.z, heading: headingAlongRoad(SPAWN.x, SPAWN.z) };
+G.home = randomStart();
 terrain.ccx = Math.floor(G.home.x / CHUNK); terrain.ccz = Math.floor(G.home.z / CHUNK);
 terrain.update(G.home.x, G.home.z, true);
 // every load brings its own weather, already settled

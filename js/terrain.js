@@ -138,24 +138,28 @@ export class Terrain {
     normal.repeat.set(CHUNK / 3.2, CHUNK / 3.2);
     return new THREE.MeshStandardMaterial({ roughness: 0.96, metalness: 0, normalMap: normal, normalScale: new THREE.Vector2(0.3, 0.3), side: THREE.DoubleSide });
   }
-  groundFor(tex, road) {
+  groundFor(tex, road, mud) {
     const m = this.groundMat.clone();
     m.map = tex;
     const detail = this.detail;
     this.noRoad ||= new THREE.DataTexture(new Float32Array(4), 1, 1, THREE.RGBAFormat, THREE.FloatType);
+    this.noMud ||= Object.assign(new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat), { needsUpdate: true });
     m.onBeforeCompile = sh => {
       sh.uniforms.uDetail = { value: detail }; sh.uniforms.uRoad = { value: road || this.noRoad }; sh.uniforms.uRoadOn = { value: road ? 1 : 0 };
+      sh.uniforms.uMud = { value: mud || this.noMud }; sh.uniforms.uMudOn = { value: mud ? 1 : 0 };
       sh.uniforms.uCloudTex = LIT.uCloudTex; sh.uniforms.uCloudAmt = LIT.uCloudAmt; sh.uniforms.uCloudP = LIT.uCloudP; sh.uniforms.uCloudHere = this.cloudHere;
       sh.uniforms.uWxTex = LIT.uWxTex; sh.uniforms.uWxP = LIT.uWxP; sh.uniforms.uWxS = LIT.uWxS; sh.uniforms.uIceTex = LIT.uIceTex;
       sh.uniforms.uWet = LIT.uWet; sh.uniforms.uRainK = LIT.uRainK; sh.uniforms.uSkyG = { value: this.skyTex }; sh.uniforms.uTimeG = WIND; sh.uniforms.uSunDirG = LIT.uSunDir; sh.uniforms.uSunColG = LIT.uSunCol;
       sh.vertexShader = 'attribute float aUnder; varying vec3 vW; varying float vUpY, vUnder;\n' + sh.vertexShader.replace('#include <fog_vertex>', '#include <fog_vertex>\n vW = (modelMatrix * vec4(transformed, 1.)).xyz; vUpY = normal.y; vUnder = aUnder;');
-      sh.fragmentShader = 'uniform sampler2D uDetail, uRoad, uCloudTex, uSkyG; uniform vec4 uCloudP; uniform float uRoadOn, uCloudAmt, uCloudHere, uWet, uRainK, uTimeG; uniform vec3 uSunDirG, uSunColG; varying vec3 vW; varying float vUpY, vUnder;\n' + CLOUD + '\n' + sh.fragmentShader.replace('#include <lights_fragment_end>', /* glsl */`#include <lights_fragment_end>
+      sh.fragmentShader = 'uniform sampler2D uDetail, uRoad, uCloudTex, uSkyG, uMud; uniform vec4 uCloudP; uniform float uMudOn, uRoadOn, uCloudAmt, uCloudHere, uWet, uRainK, uTimeG; uniform vec3 uSunDirG, uSunColG; varying vec3 vW; varying float vUpY, vUnder;\n' + CLOUD + '\n' + sh.fragmentShader.replace('#include <lights_fragment_end>', /* glsl */`#include <lights_fragment_end>
         float cloudK = cloudShade(texture2D(uCloudTex, cloudUv(vW.xz)).r) * lidShade(vW.xz) / uCloudHere;
         reflectedLight.directDiffuse *= cloudK; reflectedLight.directSpecular *= cloudK;`).replace('#include <roughnessmap_fragment>', /* glsl */`#include <roughnessmap_fragment>
         // worn asphalt catches a low sun, nothing else out here has a sheen
         roughnessFactor = mix(roughnessFactor, .58 + .26 * d1, roadK);
         // rain: everything gets a sheen, and puddles are mirrors
         roughnessFactor = mix(roughnessFactor, mix(.34, .12, roadK), wetD * (1. - steepWet) * .8);
+        // mud is wet and greasy: a soft sheen on it, only the dried crust on the ridges stays matt
+        roughnessFactor = mix(roughnessFactor, .3 + .18 * d1, mudK * (1. - mudCrust * .85));
         roughnessFactor = mix(roughnessFactor, .03, puddleK);
         roughnessFactor = mix(roughnessFactor, .55, iceK);`).replace('#include <map_fragment>', /* glsl */`
         vec4 sp = texture2D(map, vMapUv);
@@ -180,11 +184,39 @@ export class Terrain {
           torn = mix(torn, vec3(.009, .009, .01), on); tr *= 1. - on * .25;
           roadK = on * (1. - line * rd.b);
         }
+        // Mud (uMud: r cover, g standing water, b rut depth). It's built as a height: clods and churned
+        // ridges, the two ruts and every fresh tyre print pressed into it. That height bends the normal
+        // (after the normal map, below), so the low sun and the sky pick out the lumps on a greasy sheen,
+        // while water lies flat in the low places and mirrors the sky like a rain puddle.
+        float mudK = 0., mudH = 0., mudCrust = 0., mudPool = 0.;
+        if (uMudOn > .5) {
+          vec4 md = texture2D(uMud, vMapUv);
+          // (the detail map's blue is gravel grain: mud takes its smooth red channel only)
+          float fineM = texture2D(uDetail, wuv * .37 + .31).r, clod = texture2D(uDetail, wuv * .83).r, rut = md.b;
+          // a ragged edge: the mud frays out into the track in tongues, it doesn't stop at a line
+          mudK = smoothstep(.05, .75, md.r + (clod - .5) * .5 + (fineM - .5) * .25);
+          float print = tr * smoothstep(.05, .35, mudK);
+          float lump = clod * .65 + fineM * .35, churn = texture2D(uDetail, wuv * 3.7).r;
+          mudH = ((lump - .5) * .09 + (churn - .5) * .006 - rut * .2 - print * .08) * mudK;
+          mudCrust = smoothstep(.5, .74, lump - rut * .65) * (1. - print) * (1. - md.g);
+          vec3 wetM = vec3(.050, .036, .023) * (.72 + .6 * fineM), dryM = vec3(.165, .126, .088) * (.8 + .4 * churn);
+          // a tyre print in mud is a wet dark groove, not the dry torn soil of a field
+          col = mix(col, mix(wetM, dryM, mudCrust), mudK * .92);
+          col *= 1. - .35 * (rut + print) * mudK;
+          float pool = clamp(md.g * 1.3 + (d2 - .5) * .55, 0., 1.);
+          pool = max(pool, smoothstep(.5, .85, rut) * smoothstep(.4, .62, d2 + .08));
+          pool = max(pool, print * smoothstep(.45, .85, rut + md.g) * .7);
+          mudPool = smoothstep(.48, .72, pool) * mudK;
+          // muddy water is opaque and brown under its reflection
+          col = mix(col, vec3(.07, .055, .038) * (.85 + .3 * d1), mudPool * .85);
+          tr *= 1. - mudK;
+        }
         col = mix(col, torn, tr * .92);
         // wet earth is darker, and rain collects in the flat low places (the broad detail map decides where)
         steepWet = 1. - smoothstep(.9, .985, vUpY);
         float basin = smoothstep(.5, .72, d2 * .65 + texture2D(uDetail, wuv * .012).g * .45);
         puddleK = clamp((wetD - .35) * 1.9, 0., 1.) * basin * (1. - steepWet) * (1. - step(.5, tr)) * (1. - .55 * roadK);
+        puddleK = max(puddleK, mudPool * (1. - steepWet));
         col *= 1. - .42 * wetD * (1. - steepWet * .5);
         col = mix(col, col * .45, puddleK);
         // Hail lying on the ground: single stones, 1.3 to 2.7 cm, scattered over cells of 14 cm. At
@@ -201,7 +233,18 @@ export class Terrain {
         }
         puddleK *= 1. - iceK;
         col = mix(col, vec3(.8, .83, .86) * (.92 + .16 * d1), iceK);
-        diffuseColor.rgb *= col;`).replace('#include <opaque_fragment>', /* glsl */`
+        diffuseColor.rgb *= col;`).replace('#include <normal_fragment_maps>', /* glsl */`#include <normal_fragment_maps>
+        if (uMudOn > .5) {
+          // bump from the mud height (Mikkelsen's surface gradient, in view space; heights are metres).
+          // Derivatives are taken outside any per-pixel branch, so they stay valid.
+          // mud is smooth between its lumps: the gravelly grain of the ground's normal map goes
+          vec3 base = normalize(mix(normal, normalize(vNormal) * faceDirection, clamp(mudK * 1.3, 0., 1.)));
+          vec3 sX = dFdx(-vViewPosition), sY = dFdy(-vViewPosition);
+          vec3 r1 = cross(sY, base), r2 = cross(base, sX);
+          float det = dot(sX, r1), hX = dFdx(mudH), hY = dFdy(mudH);
+          vec3 bumped = normalize(abs(det) * base - sign(det) * (hX * r1 + hY * r2));
+          normal = normalize(mix(base, bumped, clamp(mudK * 1.4, 0., 1.) * (1. - mudPool)));
+        }`).replace('#include <opaque_fragment>', /* glsl */`
         {
           // the sky in puddles and on wet tarmac; rings spread from random points while it rains
           vec3 Vw = normalize(cameraPosition - vW);
@@ -213,6 +256,9 @@ export class Terrain {
           vec3 skyW = texture2D(uSkyG, vec2(atan(Rw.x, Rw.z) / 6.28318 + .5, asin(Rw.y) / 3.14159 + .5)).rgb;
           float Fw = .03 + .97 * pow(1. - max(Vw.y, 0.), 5.);
           float kW = puddleK * (.3 + .7 * Fw) * (1. + ring * .7) + wetD * (1. - steepWet) * (1. - puddleK) * (roadK * .45 + .06) * Fw;
+          // muddy water is no clean mirror: a dimmer, browner sky in it
+          kW *= 1. - .48 * mudPool;
+          skyW *= mix(vec3(1.), vec3(.78, .66, .5), mudPool);
           outgoingLight += min(skyW, vec3(.9)) * kW * .55 * cloudK;
         }
         #include <opaque_fragment>`);
@@ -378,7 +424,13 @@ export class Terrain {
       road.magFilter = road.minFilter = THREE.LinearFilter; road.needsUpdate = true;
     }
     c.road = road;
-    const mesh = new THREE.Mesh(g, this.groundFor(tex, road));
+    let mudTex = null;
+    if (d.mud) {
+      mudTex = new THREE.DataTexture(d.mud, d.texN, d.texN, THREE.RGBAFormat);
+      mudTex.magFilter = THREE.LinearFilter; mudTex.minFilter = THREE.LinearMipmapLinearFilter; mudTex.generateMipmaps = true; mudTex.needsUpdate = true;
+    }
+    c.mudTex = mudTex;
+    const mesh = new THREE.Mesh(g, this.groundFor(tex, road, mudTex));
     mesh.position.set(d.cx * CHUNK, 0, d.cz * CHUNK); mesh.receiveShadow = true;
     mesh.matrixAutoUpdate = false; mesh.updateMatrix();
     this.scene.add(mesh);
@@ -437,7 +489,7 @@ export class Terrain {
   }
   disposeSurface(c) {
     if (c.water) { this.scene.remove(c.water); c.water.geometry.dispose(); c.water = null; }
-    if (c.mesh) { this.scene.remove(c.mesh); c.mesh.geometry.dispose(); c.mesh.material.dispose(); c.tex.dispose(); c.road?.dispose(); c.mesh = null; }
+    if (c.mesh) { this.scene.remove(c.mesh); c.mesh.geometry.dispose(); c.mesh.material.dispose(); c.tex.dispose(); c.road?.dispose(); c.mudTex?.dispose(); c.mudTex = null; c.mesh = null; }
     for (const m of c.patches) { this.scene.remove(m); m.geometry.dispose(); }
     for (const m of c.details || []) { this.scene.remove(m); m.dispose(); }
     c.details = null;
@@ -682,7 +734,8 @@ export class Terrain {
 
   // Flatten crops and tear up the ground around (x,z). Returns m² of living crop destroyed.
   // Only soft ground takes that. rubber: a sliding tyre, which marks asphalt and concrete instead.
-  stamp(x, z, radius, power = 255, rubber = false) {
+  // mud: a tyre in mud presses a print even into a track (the shader draws it as a wet groove there)
+  stamp(x, z, radius, power = 255, rubber = false, mud = false) {
     const size = 256, d = CHUNK / size, rp = radius / d;
     let killed = 0;
     const c0x = Math.floor((x - radius) / CHUNK), c1x = Math.floor((x + radius) / CHUNK), c0z = Math.floor((z - radius) / CHUNK), c1z = Math.floor((z + radius) / CHUNK);
@@ -699,7 +752,7 @@ export class Terrain {
         const dd = Math.hypot(i + 0.5 - px, j + 0.5 - pz) / rp;
         if (dd > 1) continue;
         const p = j * size + i, v = Math.min(255, power * (1 - dd * dd) * 1.4 + (power >> 2)), k = c.kinds[p];
-        if (rubber ? k !== KIND.ROAD && k !== KIND.PANEL : HARD.has(k) || k === KIND.ROAD || k === KIND.PANEL) continue;
+        if (rubber ? k !== KIND.ROAD && k !== KIND.PANEL : (HARD.has(k) && !(mud && k === KIND.PATH)) || k === KIND.ROAD || k === KIND.PANEL) continue;
         if (k === KIND.PANEL) {
           // the ground shader only knows rubber on asphalt, so here the mark goes into the colour itself
           for (let q = 0; q < 3; q++) c.data[p * 4 + q] = Math.max(34, c.data[p * 4 + q] * 0.86);

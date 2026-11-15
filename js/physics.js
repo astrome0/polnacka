@@ -11,6 +11,9 @@ const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 export const WEATHER = { wet: 0, ice: 0, wind: { x: 0, z: 0 }, vortex: null };
 const vw = { x: 0, y: 0, z: 0, core: 0 };
 
+// how hard mud holds a car: rolling drag at rest / extra per unit of dig, and the share of grip it takes
+// (tuned by driving a standing start through 36 m of mud: Kamzík ~7 s, Goliáš ~10, Buvol ~15, Fénix ~17, Střela stuck)
+export const MUDK = { base: 0.3, dig: 0.9, loss: 0.8, plough: 0.03 };
 export class Vehicle {
   constructor(spec) {
     this.spec = spec;
@@ -142,7 +145,7 @@ export class Vehicle {
       w.tick = (w.tick + 1) & 3;
       if (w.tick === 0) {
         const s = surface(cx, cz);
-        w.surf.kind = s.kind; w.surf.mu = s.mu * (1 - WEATHER.wet * (s.kind === KIND.ROAD ? 0.3 : s.kind === KIND.PATH ? 0.2 : 0.14)) * (1 - 0.35 * WEATHER.ice); w.surf.rough = s.rough; w.surf.drag = s.drag; w.surf.crop = s.crop; w.surf.panel = s.panel;
+        w.surf.kind = s.kind; w.surf.mu = s.mu * (1 - WEATHER.wet * (s.kind === KIND.ROAD ? 0.3 : s.kind === KIND.PATH ? 0.2 : 0.14)) * (1 - 0.35 * WEATHER.ice); w.surf.rough = s.rough; w.surf.drag = s.drag; w.surf.crop = s.crop; w.surf.panel = s.panel; w.surf.mud = s.mud;
         normal(cx, cz, w.n ||= new THREE.Vector3());
         const wt = waterAt(cx, cz);
         // only the channel holds water: next to a stream the ground counts as dry at any height
@@ -150,7 +153,18 @@ export class Vehicle {
         w.wl = inIt ? wt.lvl : -1e9; w.cx = inIt ? wt.fx * wt.sp : 0; w.cz = inIt ? wt.fz * wt.sp : 0;
       }
       const n = w.n ||= new THREE.Vector3(0, 1, 0), surf = w.surf;
-      const groundH = ground(cx, cz, mount.y) + (noise(cx * 2.6, cz * 2.6) + noise(cx * 7.1 + 4, cz * 7.1)) * surf.rough;
+      // Mud. A tyre that spins in it digs itself in (w.dig 0..1): it settles into the ground, and the deeper
+      // it sits the more the mud holds it back. Easing off the throttle lets it climb slowly out again.
+      // The car's own build decides how bad that is: tall narrow tyres and 4x4 gearing cut through it, a low
+      // fast car with wide slicks digs straight in (p.mudSink / mudDig / mudRes / mudGrip).
+      const mud = surf.mud * (0.72 + 0.28 * Math.min(1, WEATHER.wet * 1.5 + 0.25));
+      if (mud > 0.04) {
+        const spin = Math.abs(w.slipL) + Math.abs(w.slipS) * 0.5;
+        w.dig = clamp((w.dig || 0) + dt * (spin > 1.3 ? (spin - 1.3) * 0.16 * mud * (p.mudDig ?? 1) : -0.22), 0, 1);
+      } else if (w.dig) w.dig = Math.max(0, w.dig - dt * 0.6);
+      w.mud = mud;
+      const groundH = ground(cx, cz, mount.y) + (noise(cx * 2.6, cz * 2.6) + noise(cx * 7.1 + 4, cz * 7.1)) * surf.rough
+        - (mud > 0.04 ? mud * (0.03 + 0.2 * (w.dig || 0)) * (p.mudSink ?? 1) : 0);
       w.wd = Math.max(0, w.wl - groundH);
       const denom = up.dot(n);
       const t = denom > 0.15 ? ((mount.x - cx) * n.x + (mount.y - groundH) * n.y + (mount.z - cz) * n.z) / denom : 1e3;
@@ -190,6 +204,7 @@ export class Vehicle {
 
       let mu = surf.mu * p.mu;
       if (surf.kind !== KIND.PATH && surf.kind !== KIND.ROAD) mu *= p.offroad;
+      if (w.mud > 0.04) mu *= Math.max(0.12, 1 - w.mud * (MUDK.loss - 0.55 * (p.mudGrip ?? 0.3)) * (1 + 0.25 * (w.dig || 0)));
       // a tyre has to push the water out of the way before it touches anything
       if (w.wd > 0) mu *= (1 - 0.3 * Math.min(1, w.wd / 0.4)) * (1 - 0.5 * Math.min(1, w.wd / 0.25) * clamp((Math.abs(vf) - 9) / 16, 0, 1));
       const muN = mu * N;
@@ -211,14 +226,26 @@ export class Vehicle {
       let Fy = clamp(-vs / slipRefS, -1, 1) * muN;
       // stop tiny creeping without wrecking stability
       const cap = Math.abs(vs) * this.mass * 0.25 / dt; if (Math.abs(Fy) > cap) Fy = Math.sign(Fy) * cap;
+      // A locked, braked tyre that has (almost) stopped sticks where it stands. The forces above only
+      // grow with speed, so on any slope the parked car kept creeping a few cm/s. Now the patch is
+      // pinned to an anchor on the ground and held by a stiff spring until it would take more than the grip.
+      if (brakeT > 0 && om === 0 && Math.abs(vf) < 0.5 && Math.abs(vs) < 0.5) {
+        if (!w.anc) w.anc = { x: cx, z: cz };
+        const dx = cx - w.anc.x, dz = cz - w.anc.z, kA = muN / 0.04, cA = 2 * Math.sqrt(kA * this.mass / 4);
+        const ef = dx * f.x + dz * f.z, es = dx * sx + dz * sz;
+        const hx = -kA * ef - cA * vf, hy = -kA * es - cA * vs;
+        if (Math.hypot(hx, hy) <= muN) { Fx = hx; Fy = hy; } else w.anc = null;
+      } else w.anc = null;
       // friction circle, with less grip once really sliding
       const len = Math.hypot(Fx, Fy);
       const slide = Math.hypot(om * R - vf, vs);
       w.slipL = om * R - vf; w.slipS = vs;
       const peak = slide > 3.5 ? 0.84 : 1;
       if (len > muN * peak) { const s = muN * peak / len; Fx *= s; Fy *= s; }
-      const drag = -clamp(vf, -3, 3) * surf.drag * N * 0.35;
-      const lat = Fx + drag;
+      const drag = -clamp(vf, -3, 3) * (surf.drag + (w.mud > 0.04 ? w.mud * (MUDK.base + MUDK.dig * (w.dig || 0)) * (p.mudRes ?? 1) : 0)) * N * 0.35;
+      // mud also takes more the faster you push through it (a bow wave of it), so nothing ploughs through at 50
+      const plough = w.mud > 0.04 ? -Math.sign(vf) * Math.min(vf * vf, 400) * w.mud * (p.mudRes ?? 1) * MUDK.plough * N : 0;
+      const lat = Fx + drag + plough;
       this.applyAt(f.x * lat + sx * Fy, f.y * lat + sy * Fy, f.z * lat + sz * Fy, r);
       if (w.wd > 0) {
         // the tyre wades: drag on what stands in the water, against the current

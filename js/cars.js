@@ -20,7 +20,7 @@ export const CARS = [
     marks: { cowl: 1.04, roofF: 0.34, roofR: -1.32, tail: -1.78, doorF: 0.84, doorR: -0.52, bumpF: 1.76, bumpR: -1.8, pillars: [[-0.56, -0.44]], hoodEnd: 1.92 },
     wheel: { r: 0.33, w: 0.26, knobby: true, rim: 0xe6e8ea, spokes: 6 }, axle: { f: 1.28, r: -1.3 }, track: 0.8,
     eye: [0.36, 1.16, -0.3], wheelPos: [0.36, 0.91, 0.24], dashZ: 0.92,
-    phys: { mass: 1180, comY: 0.5, I: [1800, 2200, 620], k: 34000, c: 3600, travel: 0.26, torque: 420, redline: 7600, idle: 950, gears: [3.3, 2.2, 1.6, 1.22, 0.96, 0.78], final: 4.1, drive: 'awd', mu: 1.08, nitro: 1.0, brake: 2600, top: 58, offroad: 1 },
+    phys: { mass: 1180, comY: 0.5, I: [1800, 2200, 620], k: 34000, c: 3600, travel: 0.26, torque: 420, redline: 7600, idle: 950, gears: [3.3, 2.2, 1.6, 1.22, 0.96, 0.78], final: 4.1, drive: 'awd', mu: 1.08, nitro: 1.0, brake: 2600, top: 58, offroad: 1, mudGrip: 0.5, mudDig: 1, mudRes: 1.6, mudSink: 1 },
   },
   {
     id: 'pickup', name: 'Buvol 4×4', tag: 'Pracovní pickup', blurb: 'Těžký, vysoký a nenechá se zastavit bahnem.',
@@ -33,7 +33,7 @@ export const CARS = [
     marks: { cowl: 1.46, roofF: 0.74, roofR: -0.66, tail: -0.72, doorF: 1.22, doorR: -0.42, bumpF: 2.34, bumpR: -2.42, pillars: [[-0.48, -0.32]], hoodEnd: 2.54, bed: [-2.5, -0.74] },
     wheel: { r: 0.44, w: 0.32, knobby: true, rim: 0x2c2e33, spokes: 6 }, axle: { f: 1.62, r: -1.62 }, track: 0.9,
     eye: [0.42, 1.62, 0.02], wheelPos: [0.42, 1.27, 0.58], dashZ: 1.28,
-    phys: { mass: 2150, comY: 0.84, I: [4800, 5400, 1500], k: 46000, c: 6000, travel: 0.32, torque: 680, redline: 5200, idle: 750, gears: [3.9, 2.4, 1.6, 1.15, 0.86], final: 3.9, drive: 'awd', mu: 1.1, nitro: 0.8, brake: 4600, top: 46, offroad: 1.05 },
+    phys: { mass: 2150, comY: 0.84, I: [4800, 5400, 1500], k: 46000, c: 6000, travel: 0.32, torque: 680, redline: 5200, idle: 750, gears: [3.9, 2.4, 1.6, 1.15, 0.86], final: 3.9, drive: 'awd', mu: 1.1, nitro: 0.8, brake: 4600, top: 46, offroad: 1.05, mudGrip: 0.55, mudDig: 0.9, mudRes: 1.4, mudSink: 1 },
   },
   {
     id: 'monster', name: 'Goliáš', tag: 'Monster truck', blurb: 'Přejede cokoliv. Fakt cokoliv. Stromy taky.',
@@ -46,7 +46,7 @@ export const CARS = [
     marks: { cowl: 1.4, roofF: 0.74, roofR: -0.66, tail: -0.72, doorF: 1.2, doorR: -0.42, bumpF: 2.28, bumpR: -2.34, pillars: [[-0.48, -0.32]], hoodEnd: 2.44, bed: [-2.42, -0.74] },
     wheel: { r: 0.88, w: 0.62, knobby: true, rim: 0xc9ccd0, spokes: 8, big: true }, axle: { f: 1.76, r: -1.76 }, track: 1.26,
     eye: [0.42, 1.62, 0.02], wheelPos: [0.42, 1.27, 0.58], dashZ: 1.26,
-    phys: { mass: 4300, comY: 1.5, I: [9800, 11000, 5000], k: 62000, c: 9000, travel: 0.72, torque: 2100, redline: 5400, idle: 760, gears: [3.4, 2.1, 1.4, 1.0], final: 3.9, drive: 'awd', mu: 1.24, nitro: 0.7, brake: 9000, top: 40, offroad: 1.15 },
+    phys: { mass: 4300, comY: 1.5, I: [9800, 11000, 5000], k: 62000, c: 9000, travel: 0.72, torque: 2100, redline: 5400, idle: 760, gears: [3.4, 2.1, 1.4, 1.0], final: 3.9, drive: 'awd', mu: 1.24, nitro: 0.7, brake: 9000, top: 40, offroad: 1.15, mudGrip: 0.8, mudDig: 0.8, mudRes: 2.7, mudSink: 0.4 },
   },
   {
     id: 'sport', name: 'Střela GT', tag: 'Supersport', blurb: 'Na silnici raketa. V poli naprostá katastrofa.',
@@ -59,7 +59,25 @@ export const CARS = [
     marks: { cowl: 0.92, roofF: 0.12, roofR: -0.44, tail: -1.82, doorF: 0.66, doorR: -0.6, bumpF: 1.84, bumpR: -1.98, pillars: [], hoodEnd: 2.12, slope: true },
     wheel: { r: 0.345, w: 0.31, rim: 0xb8bcc4, spokes: 5 }, axle: { f: 1.36, r: -1.36 }, track: 0.85,
     eye: [0.38, 0.93, -0.5], wheelPos: [0.38, 0.69, 0.0], dashZ: 0.62,
-    phys: { mass: 1420, comY: 0.42, I: [2300, 2900, 620], k: 60000, c: 6000, travel: 0.13, torque: 760, redline: 8200, idle: 1000, gears: [3.1, 2.15, 1.65, 1.3, 1.05, 0.86, 0.7], final: 3.6, drive: 'rwd', mu: 1.32, nitro: 1.2, brake: 5200, top: 96, offroad: 0.56 },
+    phys: { mass: 1420, comY: 0.42, I: [2300, 2900, 620], k: 60000, c: 6000, travel: 0.13, torque: 760, redline: 8200, idle: 1000, gears: [3.1, 2.15, 1.65, 1.3, 1.05, 0.86, 0.7], final: 3.6, drive: 'rwd', mu: 1.32, nitro: 1.2, brake: 5200, top: 96, offroad: 0.56, mudGrip: 0.05, mudDig: 2.2, mudRes: 2.2, mudSink: 1.5 },
+  },
+  {
+    // an old Land Rover / UAZ-style field car: flat panels, an upright screen, round lamps, the spare on
+    // the bonnet and a canvas tilt over the back. Soft springs, weak dampers and a high centre of mass,
+    // so it leans and rocks; slow, but the long gears and grip pull it through mud.
+    id: 'kamzik', name: 'Kamzík', tag: 'Veterán 4×4', isNew: true, blurb: 'Starý, měkký a houpe se jak loďka. V bahně nemá konkurenci.',
+    paint: 0x4f5b3a, roughness: 0.55, plate: 'KMZ 1965', trim: 0x1a1b1d, kind: 'pickup', maxKmh: 140,
+    stations: [
+      st(-2.0, 0.6, 0.84, 0.78, 1.04, 0.77, 1.06, 0.72), st(-1.97, 0.52, 0.86, 0.84, 1.1, 0.83, 1.12, 0.78), st(-1.8, 0.5, 0.86, 0.85, 1.1, 0.84, 1.12, 0.8),
+      st(-0.64, 0.5, 0.86, 0.85, 1.1, 0.84, 1.12, 0.8), st(-0.58, 0.5, 0.86, 0.85, 1.12, 0.83, 1.86, 0.74), st(0.0, 0.5, 0.86, 0.85, 1.12, 0.83, 1.9, 0.75), st(0.5, 0.5, 0.86, 0.85, 1.12, 0.83, 1.88, 0.75),
+      st(0.66, 0.5, 0.86, 0.85, 1.12, 0.83, 1.18, 0.76), st(1.6, 0.52, 0.86, 0.84, 1.1, 0.82, 1.16, 0.74), st(1.86, 0.56, 0.84, 0.8, 1.06, 0.78, 1.1, 0.7), st(1.92, 0.62, 0.82, 0.72, 1.0, 0.7, 1.02, 0.6),
+    ],
+    marks: { cowl: 0.66, glassTo: 0.62, roofF: 0.5, roofR: -0.58, tail: -0.64, doorF: 0.56, doorR: -0.5, bumpF: 1.8, bumpR: -1.9, pillars: [[-0.48, -0.36]], hoodEnd: 1.86, bed: [-1.9, -0.66] },
+    wheel: { r: 0.38, w: 0.24, knobby: true, rim: 0xd9d5c8, spokes: 5 }, axle: { f: 1.2, r: -1.2 }, track: 0.74,
+    eye: [0.37, 1.5, -0.3], wheelPos: [0.37, 1.18, 0.18], dashZ: 0.66,
+    lamps: { y: 0.84, x: 0.6, r: 0.1 }, dashThin: 0.45, grille: { y: 0.84, w: 0.86, h: 0.36 },
+    // tuned by driving: 0–50 km/h in ~3.7 s, ~30° of lean in a 60 km/h bend without going over
+    phys: { mass: 1550, comY: 0.62, I: [2500, 2900, 900], k: 30000, c: 3200, travel: 0.3, torque: 180, redline: 4600, idle: 700, gears: [4.1, 2.5, 1.55, 1.0], final: 3.9, drive: 'awd', mu: 1.04, nitro: 0.5, brake: 3000, top: 34, offroad: 1.12, mudGrip: 0.9, mudDig: 0.3, mudRes: 0.75, mudSink: 0.6 },
   },
 ];
 
@@ -109,7 +127,7 @@ function buildGrid(spec) {
   // dense stations, snapped so every panel edge falls exactly on a grid line
   const marks = spec.marks, zs = new Set(xs.map(z => +z.toFixed(3)));
   const addM = z => z != null && zs.add(+z.toFixed(3));
-  for (const k of ['cowl', 'roofF', 'roofR', 'tail', 'doorF', 'doorR', 'bumpF', 'bumpR', 'hoodEnd']) addM(marks[k]);
+  for (const k of ['cowl', 'glassTo', 'roofF', 'roofR', 'tail', 'doorF', 'doorR', 'bumpF', 'bumpR', 'hoodEnd']) addM(marks[k]);
   (marks.pillars || []).forEach(p => p.forEach(addM)); if (marks.bed) marks.bed.forEach(addM);
   const sorted = [...zs].sort((a, b) => a - b), out = [];
   for (let i = 0; i < sorted.length - 1; i++) {
@@ -183,7 +201,9 @@ function cabinGLSL(spec) {
       } else open *= cabEdge(WB - hq * kx - .09, abs(q.x));
       return open * uSunVis;
     }
-    float cabinOcc(vec3 p) { return mix(.42, .92, smoothstep(${n(BELT - 0.55)}, ${n(BELT + 0.2)}, p.y)); }
+    // the cabin gets a good share of the sky's light through its glass: without sun (rain, dusk, trees)
+    // the dark trim would otherwise sink to flat black and you couldn't read the dash
+    float cabinOcc(vec3 p) { return mix(.62, 1.3, smoothstep(${n(BELT - 0.55)}, ${n(BELT + 0.2)}, p.y)); }
   `;
 }
 const CABIN_VERT = 'uniform mat4 uCabInv; varying vec3 vCabP;\n';
@@ -230,11 +250,12 @@ export function bodyMaterial(color, rough, env, spec, dirt, cabU) {
       }
       float seam = smoothstep(.0, .16, vEdge);
       diffuseColor.rgb *= seam * .95 + .05;
-      if (!gl_FrontFacing) diffuseColor.rgb = vec3(.3,.3,.31);
+      // the inside of the sheet is the headliner and door lining: dark cloth, not bare grey metal
+      if (!gl_FrontFacing) diffuseColor.rgb = vec3(${(spec.lining ?? [0.034, 0.032, 0.034]).map(v => v.toFixed(3)).join(',')});
       float dN = dv(vRest*5.)*.55 + dv(vRest*17.)*.3 + dv(vRest*51.)*.15;
       float dirtA = smoothstep(.0,1.,uDirt*1.5 - (vRest.y-.2)*.75 + dN*.55 - .25) * .96;
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.075,.052,.03)*(.7+dN*.6), dirtA);`)
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, 1., smoothstep(.2,.7,uDirt*1.3-(vRest.y-.3)*.6));')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, 1., smoothstep(.2,.7,uDirt*1.3-(vRest.y-.3)*.6));\n if (!gl_FrontFacing) roughnessFactor = 1.;   // cloth lining: no mirror sheen of the sunset sky')
       // the inside of the sheet ignores the coarse world shadows and uses the cabin trace instead
       .replace('#include <lights_fragment_begin>', THREE.ShaderChunk.lights_fragment_begin.replaceAll('receiveShadow', '(receiveShadow && gl_FrontFacing)'))
       .replace('#include <aomap_fragment>', `#include <aomap_fragment>
@@ -295,7 +316,8 @@ function classify(spec, z, row) {
     if (row >= RAIL_ROW && z > m.tail && z < m.roofR - 0.08) return 'glass';
   } else {
     // the row just under the rail runs up the windscreen edge and is the A-pillar
-    if (row >= RAIL_ROW && z > m.roofF && z < m.cowl - 0.04) return 'glass';
+    // (glassTo: where an upright screen's glass ends; the grid gets a line there, leaving a slim body band under it)
+    if (row >= RAIL_ROW && z > m.roofF && z < (m.glassTo ?? m.cowl - 0.04)) return 'glass';
     if (row >= BELT_ROW && row < RAIL_ROW - 1 && z > m.roofR + 0.02 && z < m.cowl - 0.1 && !(m.pillars || []).some(p => z > p[0] && z < p[1])) return 'glass';
     if (row >= BELT_ROW && z > m.tail + 0.02 && z < m.roofR - 0.02 && !m.bed) return 'glass';
   }
@@ -451,24 +473,32 @@ export function buildCar(spec, env) {
   const lampY = (spec.kind === 'coupe' ? 0.55 : spec.kind === 'pickup' ? 1.06 : 0.71) + bumpAt(FB, wF * (spec.kind === 'coupe' ? 0.76 : 0.72), zF - (spec.kind === 'coupe' ? 0.38 : 0.11)), lampZ = zF - (spec.kind === 'coupe' ? 0.38 : 0.11), lampX = wF * (spec.kind === 'coupe' ? 0.76 : 0.72);
   const headL = [], tails = [];
   for (const s of [-1, 1]) {
-    const lamp = spec.kind === 'pickup'
+    const L = spec.lamps;   // a car of its own: round lamps in chrome rings, set into the flat front
+    const lamp = L ? lampLens(L.r, L.r, 0.05, 0xf4f6fa, 0xfff0d0, s * L.x, L.y, top.z + 0.012)
+      : spec.kind === 'pickup'
       ? lampLens(0.2, 0.13, 0.09, 0xf4f6fa, 0xfff0d0, s * lampX, lampY, lampZ)
       : lampLens(0.24, 0.1, 0.12, 0xf4f6fa, 0xfff0d0, s * lampX, lampY, lampZ, -s * 0.45);
     hull.add(lamp); headL.push(lamp);
-    const tl = lampLens(0.18, 0.07, 0.04, 0x8a0a0a, 0xff1408, s * tail.w * 1.02, spec.kind === 'pickup' ? 1.02 : tail.mid + 0.2, zR + (spec.kind === 'coupe' ? -0.02 : -0.02));
+    if (L) hull.add(new THREE.Mesh(new THREE.TorusGeometry(L.r + 0.012, 0.016, 8, 28).translate(s * L.x, L.y, top.z + 0.014), chrome));
+    // (round lamps get small round tail lights set into the rear panel, not lenses over the corners)
+    const tl = L ? lampLens(0.055, 0.055, 0.025, 0x8a0a0a, 0xff1408, s * tail.w * 0.78, tail.mid + 0.02, tail.z - 0.008)
+      : lampLens(0.18, 0.07, 0.04, 0x8a0a0a, 0xff1408, s * tail.w * 1.02, spec.kind === 'pickup' ? 1.02 : tail.mid + 0.2, zR + (spec.kind === 'coupe' ? -0.02 : -0.02));
     hull.add(tl); tails.push(tl);
+    if (L) hull.add(new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.01, 6, 20).translate(s * tail.w * 0.78, tail.mid + 0.02, tail.z - 0.01), chrome));
   }
   // grille, plate, intakes
-  const grilleY = spec.kind === 'pickup' ? 0.92 : spec.kind === 'coupe' ? 0.3 : 0.5;
+  // the supercar's nose face is only a hand high: its intake and plate share it, nothing hangs below
+  const coupe = spec.kind === 'coupe';
+  const GR = spec.grille;
+  const grilleY = GR ? GR.y : spec.kind === 'pickup' ? 0.92 : coupe ? top.low + (top.mid - top.low) * 0.55 : 0.5;
   const grille = new THREE.Group();
-  const gw = wF * (spec.kind === 'coupe' ? 1.1 : 0.98);
-  grille.add(new THREE.Mesh(box(gw, spec.kind === 'pickup' ? 0.26 : 0.14, 0.03, 0, grilleY, top.z - 0.02), darkM));
-  for (let i = 0; i < 4; i++) grille.add(new THREE.Mesh(box(gw * 0.96, 0.012, 0.015, 0, grilleY - 0.06 + i * 0.04, top.z + 0.002), trimM));
+  const gw = GR ? GR.w : coupe ? top.w * 1.5 : wF * 0.98, gh = GR ? GR.h : spec.kind === 'pickup' ? 0.26 : coupe ? (top.mid - top.low) * 0.8 : 0.14;
+  grille.add(new THREE.Mesh(box(gw, gh, 0.03, 0, grilleY, top.z - (coupe ? 0.008 : 0.02)), darkM));
+  for (let i = 0, n = coupe ? 3 : GR ? 7 : 4; i < n; i++) grille.add(new THREE.Mesh(box(gw * 0.96, 0.012, 0.015, 0, grilleY - gh * 0.43 + i * gh * 0.86 / (n - 1), top.z + (coupe ? 0.01 : 0.002)), trimM));
   hull.add(grille);
   const plate = plateTexture(spec.plate);
   const plateM = new THREE.MeshStandardMaterial({ map: plate, roughness: 0.5 });
-  const pf = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.11), plateM); pf.position.set(0, grilleY - (spec.kind === 'pickup' ? 0.24 : 0.14), top.z + 0.014); hull.add(pf);
-  const pr = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.11), plateM); pr.position.set(0, tail.mid, tail.z - 0.012); pr.rotation.y = Math.PI; hull.add(pr);
+  const pf = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.11), plateM); pf.position.set(0, coupe ? grilleY : grilleY - (spec.kind === 'pickup' ? 0.24 : 0.14), top.z + (coupe ? 0.018 : 0.014)); hull.add(pf);  const pr = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.11), plateM); pr.position.set(0, tail.mid, tail.z - 0.012); pr.rotation.y = Math.PI; hull.add(pr);
 
   // mirrors, handles
   const mirrorZ = m.cowl - 0.06, mirrorY = S.find(s => s.z >= m.cowl).belt + 0.05 + bumpAt(FB, S[4].wb, m.cowl - 0.06);
@@ -517,21 +547,60 @@ export function buildCar(spec, env) {
     bed.add(new THREE.Mesh(box(wx * 1.88, wy - 0.82, 0.03, 0, (wy + 0.82) / 2, b0), bedM));
     bed.traverse(o => { o.castShadow = true; });
     hull.add(bed);
-    // bull bar, step rails
-    hull.add(new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.03, 8, 22, Math.PI).translate(0, 0.72, top.z + 0.1), trimM));
-    for (const s of [-1, 1]) hull.add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.1, 8).rotateX(Math.PI / 2).translate(s * (S[4].w + 0.08), 0.58, 0.3), trimM));
+    // bull bar, step rails (the old field car has a plain steel bumper instead, built below)
+    if (spec.id !== 'kamzik') hull.add(new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.03, 8, 22, Math.PI).translate(0, 0.72, top.z + 0.1), trimM));
+    if (spec.id !== 'kamzik') for (const s of [-1, 1]) hull.add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.1, 8).rotateX(Math.PI / 2).translate(s * (S[4].w + 0.08), 0.58, 0.3), trimM));
     if (spec.id === 'pickup') { // winch
       hull.add(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.4, 14).rotateZ(Math.PI / 2).translate(0, 0.76, top.z + 0.02), chrome));
       // a load of hay bales in the back
       const hay = new THREE.Mesh(box(1.1, 0.34, 0.8, -0.1, 1.02, -1.6), new THREE.MeshStandardMaterial({ color: 0xc9ab62, roughness: 1 })); hay.rotation.y = 0.1; hay.castShadow = true; hull.add(hay);
     }
   }
+  if (spec.id === 'kamzik') {
+    // plain steel bumpers, the front one carries the plate
+    hull.add(new THREE.Mesh(box(1.74, 0.13, 0.12, 0, 0.58, top.z + 0.12), trimM));
+    for (const s of [-0.5, 0.5]) hull.add(new THREE.Mesh(box(0.08, 0.08, 0.16, s, 0.6, top.z + 0.02), trimM));
+    pf.position.set(0, 0.58, top.z + 0.185);
+    hull.add(new THREE.Mesh(box(1.5, 0.11, 0.1, 0, 0.6, tail.z - 0.07), trimM));
+    // the spare rides on the bonnet; it's fixed to the bonnet so it leaves with it
+    const sp = buildWheel(spec, env); sp.rotation.z = Math.PI / 2;
+    sp.position.set(0, S[8].top + spec.wheel.w / 2 + 0.005, 1.18);
+    (parts.hood?.mesh || hull).add(sp);
+    // canvas tilt over the bed: a hooped cover that sags a little between its hoops, rolled flap at the back
+    const [b0, b1] = m.bed, L = b1 - b0 + 0.03, hx = S[3].w * 0.95, y0 = S[3].belt - 0.01, y1 = S[4].top - 0.08, rr = 0.14;
+    const sh = new THREE.Shape();
+    sh.moveTo(-hx, y0); sh.lineTo(hx, y0); sh.lineTo(hx, y1 - rr); sh.quadraticCurveTo(hx, y1, hx - rr, y1);
+    sh.lineTo(-hx + rr, y1); sh.quadraticCurveTo(-hx, y1, -hx, y1 - rr); sh.closePath();
+    const tg = new THREE.ExtrudeGeometry(sh, { depth: L, steps: 30, bevelEnabled: false, curveSegments: 6 }).translate(0, 0, b0 - 0.02);
+    const tp = tg.attributes.position, hoops = 3;
+    for (let i = 0; i < tp.count; i++) {
+      const x = tp.getX(i), y = tp.getY(i), z = tp.getZ(i), u = (z - b0 + 0.02) / L;
+      const sag = Math.sin(u * hoops * Math.PI) ** 2 * 0.03;
+      const roof = Math.max(0, (y - (y1 - 0.25)) / 0.25), side = Math.max(0, (Math.abs(x) - (hx - 0.2)) / 0.2);
+      tp.setY(i, y - sag * roof * (1 - side * 0.6)); tp.setX(i, x - Math.sign(x) * sag * side * 0.5 * (1 - roof));
+    }
+    tg.computeVertexNormals();
+    const canvasM = new THREE.MeshStandardMaterial({ color: 0x8b8466, roughness: 1, side: THREE.DoubleSide });
+    const tilt = new THREE.Mesh(tg, canvasM); tilt.castShadow = true; tilt.receiveShadow = true; hull.add(tilt);
+    // hoops show as stitched seams, the rolled-up flap hangs over the tailgate
+    const seamM = new THREE.MeshStandardMaterial({ color: 0x6c6650, roughness: 1 });
+    for (let k = 0; k <= hoops; k++) {
+      const z = b0 - 0.02 + L * k / hoops, seam = new THREE.Shape();
+      seam.moveTo(-hx - 0.012, y0 + 0.02); seam.lineTo(-hx - 0.012, y1 - rr); seam.quadraticCurveTo(-hx - 0.012, y1 + 0.012, -hx + rr, y1 + 0.012);
+      seam.lineTo(hx - rr, y1 + 0.012); seam.quadraticCurveTo(hx + 0.012, y1 + 0.012, hx + 0.012, y1 - rr); seam.lineTo(hx + 0.012, y0 + 0.02);
+      const pts = seam.getPoints(8).map(p => new THREE.Vector3(p.x, p.y, z));
+      hull.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.1), 40, 0.012, 6), seamM));
+    }
+    hull.add(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, hx * 1.9, 12).rotateZ(Math.PI / 2).translate(0, y1 - 0.12, b0 - 0.06), canvasM));
+    for (const s of [-0.5, 0.5]) hull.add(new THREE.Mesh(box(0.04, 0.2, 0.012, s * hx, y1 - 0.18, b0 - 0.115), seamM));
+  }
   // light bar on the roof: the pickup's own, or any car's from the tuning
   if ((spec.roofBar ?? spec.id === 'pickup') && spec.id !== 'rally') {
     const zb = m.roofF - 0.24, ring = grid.reduce((a, b) => (Math.abs(b.z - zb) < Math.abs(a.z - zb) ? b : a)).ring;
     const yb = ring[ring.length - 1][1] + 0.05, wb = Math.min(1.1, S[4].wt * 1.5);
     hull.add(new THREE.Mesh(box(wb, 0.06, 0.08, 0, yb, zb), trimM));
-    for (const s of [-0.345, -0.118, 0.118, 0.345]) { const l = lampLens(0.09, 0.07, 0.04, 0xf8f8ee, 0xfff0d0, s * wb, yb, zb + 0.06); hull.add(l); headL.push(l); }
+    // (lamps ride on top of the bar: set at the bar's height their lower halves hung through the roof into the cabin)
+    for (const s of [-0.345, -0.118, 0.118, 0.345]) { const l = lampLens(0.09, 0.07, 0.04, 0xf8f8ee, 0xfff0d0, s * wb, yb + 0.07, zb + 0.06); hull.add(l); headL.push(l); }
   }
   if (spec.id === 'sport') {
     // rear wing and splitter
@@ -539,7 +608,21 @@ export function buildCar(spec, env) {
     hull.add(new THREE.Mesh(roundedBox(1.72, 0.03, 0.32, 0, y, S[1].z + 0.28, 0.012), trimM));
     for (const s of [-0.84, 0.84]) hull.add(new THREE.Mesh(box(0.02, 0.1, 0.34, s, y - 0.01, S[1].z + 0.28), trimM));
     for (const s of [-0.5, 0.5]) hull.add(new THREE.Mesh(box(0.05, 0.2, 0.09, s, y - 0.11, S[1].z + 0.3), trimM));
-    hull.add(new THREE.Mesh(box(1.78, 0.02, 0.2, 0, 0.2, top.z - 0.1), trimM));
+    // the splitter is a lip under the nose: its outline follows the nose in plan and pokes out only a
+    // few centimetres, a plain plank stood out in the air past the rounded corners
+    {
+      const nose = grid.filter(c => c.z >= spec.axle.f + 0.3), yS = Math.min(...nose.map(c => c.ring[0][1])) - 0.012;
+      const wAt = c => Math.max(...c.ring.filter(p => p[1] < c.ring[0][1] + 0.1).map(p => p[0]));
+      const sh = new THREE.Shape(), last = nose[nose.length - 1];
+      sh.moveTo(-wAt(nose[0]) * 0.97, nose[0].z);
+      for (const c of nose) sh.lineTo(-wAt(c) * 0.99 - 0.02, c.z + 0.02);
+      sh.lineTo(-wAt(last) * 0.8, last.z + 0.05); sh.lineTo(wAt(last) * 0.8, last.z + 0.05);
+      for (let i = nose.length - 1; i >= 0; i--) sh.lineTo(wAt(nose[i]) * 0.99 + 0.02, nose[i].z + 0.02);
+      sh.lineTo(wAt(nose[0]) * 0.97, nose[0].z); sh.closePath();
+      // shape y → model z: rotateX(+90°) sends y to z and the extrusion downwards
+      const sg = new THREE.ExtrudeGeometry(sh, { depth: 0.018, bevelEnabled: false }).rotateX(Math.PI / 2).translate(0, yS + 0.009, 0);
+      hull.add(new THREE.Mesh(sg, trimM));
+    }
     for (const s of [-1, 1]) hull.add(new THREE.Mesh(box(0.05, 0.17, 0.92, s * 0.97, 0.45, -0.72), darkM));
     for (const s of [-1, 1]) hull.add(new THREE.Mesh(box(0.05, 0.04, 2.1, s * 0.965, 0.2, 0.05), trimM));
     // centre stripes painted on
@@ -605,7 +688,7 @@ function buildCockpit(spec, env, grid, cabU) {
     return m;
   };
   const darkM = trim(0x14151a), chrome = trim(0xa4a7ad, 0.4);
-  const dashM = trim(sport ? 0x34363d : 0x4c4f57), softM = trim(sport ? 0x8a2420 : 0x62656e);
+  const dashM = trim(sport ? 0x3e4049 : 0x52555e), softM = trim(sport ? 0x8a2420 : 0x62656e);
 
   // dash: a curved extrusion across the car, seen from the driver's seat
   const sh = new THREE.Shape();
@@ -614,6 +697,8 @@ function buildCockpit(spec, env, grid, cabU) {
   sh.quadraticCurveTo(-0.4, -0.04, -0.2, 0); sh.closePath();
   const dash = new THREE.ExtrudeGeometry(sh, { depth: halfW * 2, bevelEnabled: true, bevelSize: 0.012, bevelThickness: 0.012, bevelSegments: 2, curveSegments: 10 });
   dash.rotateY(-Math.PI / 2); dash.translate(halfW, dashTop, dz);
+  // an old car's dash is a thin steel shelf: squash it from the top down so it doesn't wall off the bonnet
+  if (spec.dashThin) dash.translate(0, -dashTop, 0).scale(1, spec.dashThin, 1).translate(0, dashTop - 0.03, 0);
   const dashMesh = new THREE.Mesh(dash, dashM); dashMesh.castShadow = false; g.add(dashMesh);
 
   // the gauges sit in the gap between the wheel's hub and the top of its rim, as seen from the seat
@@ -624,7 +709,7 @@ function buildCockpit(spec, env, grid, cabU) {
   const binM = trim(0x24262c); binM.side = THREE.DoubleSide; g.add(new THREE.Mesh(bn, binM));
   const backing = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.2).rotateY(Math.PI).translate(wx, dialY - 0.02, dialZ + 0.012), trim(0x101114, 0.9)); g.add(backing);
 
-  const maxKmh = sport ? 360 : spec.id === 'monster' ? 180 : 240;
+  const maxKmh = spec.maxKmh ?? (sport ? 360 : spec.id === 'monster' ? 180 : 240);
   const rpmMax = Math.ceil(spec.phys.redline / 1000) + 1;
   const dial = (tex, x) => {
     const d = new THREE.Mesh(new THREE.CircleGeometry(0.078, 40), new THREE.MeshBasicMaterial({ map: tex, toneMapped: true })); d.position.set(x, dialY, dialZ); d.rotation.y = Math.PI; g.add(d);
@@ -722,7 +807,8 @@ function buildCockpit(spec, env, grid, cabU) {
   // grid as the body so it sits exactly under the glass, and it carries the visors and the mirror.
   const near = z => grid.reduce((a, b) => (Math.abs(b.z - z) < Math.abs(a.z - z) ? b : a));
   const crownY = z => { const r = near(z).ring; return r[r.length - 1][1]; };
-  const zH = spec.marks.roofF, headerM = trim(0x7c7e84), frame = grid.filter(c => c.z >= zH - 0.12 && c.z <= zH + 0.2);
+  // (only cells up at roof height: on an upright screen the band ahead of the roof line IS the glass)
+  const zH = spec.marks.roofF, headerM = trim(0x7c7e84), frame = grid.filter(c => c.z >= zH - 0.12 && c.z <= zH + 0.2 && crownY(c.z) > crownY(zH) - 0.18);
   headerM.side = THREE.DoubleSide;
   const across = [];
   for (let r = RAIL_ROW - 1; r < ROWS - 1; r++) across.push([r, -1]);
@@ -737,38 +823,90 @@ function buildCockpit(spec, env, grid, cabU) {
     const P = k => [hp[(edge + k) * 3], hp[(edge + k) * 3 + 1], hp[(edge + k) * 3 + 2]];
     limb(P(b), P(b + 1), 0.015, 0.015, headerM);
   }
-  // visors fold flat against that rail
-  const zV = zH + 0.07, visorTilt = Math.atan2(crownY(zV - 0.06) - crownY(zV + 0.06), 0.12);
+  // visors fold flat against the roof lining, a little behind the rail: same cloth as the lining so
+  // they read as part of the roof, with a stitched rim, a pivot rod and a pocket strap for papers
+  const zV = zH - 0.1, visorTilt = Math.atan2(crownY(zV - 0.1) - crownY(zV + 0.1), 0.2);
+  const visorM = trim(0x9a978f, 0.95), rimM = trim(0x2a2b2f, 0.9);
+  // a flat plate with rounded corners in plan (roundedBox rounds the thin edge instead)
+  const plate = (w, d, t, r, y) => {
+    const a = w / 2, b = d / 2, sh = new THREE.Shape();
+    sh.moveTo(-a + r, -b); sh.lineTo(a - r, -b); sh.quadraticCurveTo(a, -b, a, -b + r); sh.lineTo(a, b - r); sh.quadraticCurveTo(a, b, a - r, b);
+    sh.lineTo(-a + r, b); sh.quadraticCurveTo(-a, b, -a, b - r); sh.lineTo(-a, -b + r); sh.quadraticCurveTo(-a, -b, -a + r, -b);
+    return new THREE.ExtrudeGeometry(sh, { depth: t, bevelEnabled: false, curveSegments: 6 }).rotateX(-Math.PI / 2).translate(0, y, 0);
+  };
   for (const s of [-1, 1]) {
-    const v = new THREE.Mesh(roundedBox(0.34, 0.016, 0.11, 0, 0, 0), softM);
-    v.position.set(s * 0.3, crownY(zV) - 0.034, zV); v.rotation.x = visorTilt; g.add(v);
+    const v = new THREE.Group();
+    v.add(new THREE.Mesh(plate(0.3, 0.19, 0.012, 0.045, 0), visorM));
+    v.add(new THREE.Mesh(plate(0.314, 0.204, 0.008, 0.052, -0.004), rimM));
+    v.add(new THREE.Mesh(plate(0.2, 0.012, 0.004, 0.004, 0.012).translate(0, 0, -0.05), rimM));
+    v.add(new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.12, 8).rotateZ(Math.PI / 2).translate(-s * 0.15, 0.004, 0.105), chrome));
+    v.position.set(s * 0.27, crownY(zV) - 0.04, zV); v.rotation.x = visorTilt; g.add(v);
   }
   // mirror hangs from the rail on a short stalk
-  const zM = zH + 0.17, mY = crownY(zM) - 0.016;
+  // on an upright screen there is no roof ahead of the rail to hang it from: it goes just behind the rail
+  let zM = zH + 0.17; if (crownY(zM) < crownY(zH) - 0.18) zM = zH - 0.05;
+  const mY = crownY(zM) - 0.016;
   g.add(new THREE.Mesh(roundedBox(0.09, 0.03, 0.05, 0, mY - 0.012, zM, 0.012), headerM));
   g.add(new THREE.Mesh(box(0.016, 0.05, 0.016, 0, mY - 0.045, zM), darkM));
   g.add(new THREE.Mesh(roundedBox(0.23, 0.066, 0.026, 0, mY - 0.095, zM), trim(0x202228)));
   const mirrorPlane = new THREE.Mesh(new THREE.PlaneGeometry(0.212, 0.052).rotateY(Math.PI), new THREE.MeshStandardMaterial({ color: 0xe8ecf0, metalness: 1, roughness: 0.03, envMap: env, envMapIntensity: 1.3 }));
   mirrorPlane.position.set(0, mY - 0.095, zM - 0.0145); g.add(mirrorPlane);
-  // A-pillar trim follows the sheet: built from the same grid so it covers the pillar exactly
+  // A-pillar trim follows the sheet: built from the same grid so it covers the pillar exactly. Kept
+  // fully inside the glass; on the supercar it's dark, its red leather read as paint from outside.
+  const pillarM = sport ? trim(0x1c1d22, 0.8) : softM;
   for (const side of [-1, 1]) {
     const ring = n => { const c = near(n).ring, p = c[RAIL_ROW - 1], q = c[RAIL_ROW]; return [p[0] * side, (p[1] + q[1]) / 2, n]; };
-    const pts = [], N = 12, z0 = spec.marks.cowl - 0.1, z1 = Math.max(spec.marks.doorR, spec.marks.roofR + 0.1);
+    const pts = [], N = 12, z0 = spec.marks.cowl - 0.1, z1 = spec.marks.slope ? spec.marks.roofR - 0.5 : Math.max(spec.marks.doorR, spec.marks.roofR + 0.1);
     for (let i = 0; i <= N; i++) pts.push(ring(z0 + (z1 - z0) * i / N));
     for (let i = 0; i < N; i++) {
       const [ax, ay, az] = pts[i], [bx, by, bz] = pts[i + 1];
       const d = new THREE.Vector3(bx - ax, by - ay, bz - az), l = d.length();
-      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, l + 0.012, 10), softM);
-      c.position.set((ax + bx) / 2 - side * 0.012, (ay + by) / 2 - 0.008, (az + bz) / 2);
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, l + 0.012, 10), pillarM);
+      c.position.set((ax + bx) / 2 - side * 0.03, (ay + by) / 2 - 0.012, (az + bz) / 2);
       c.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); c.scale.set(0.7, 1, 1.25); g.add(c);
     }
+    // soft round ends instead of a flat cut
+    for (const [px, py, pz] of [pts[0], pts[N]]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.024, 10, 8), pillarM); e.position.set(px - side * 0.03, py - 0.012, pz); e.scale.set(0.7, 1, 1.25); g.add(e); }
   }
 
-  // door cards, so the side of the view is not bare sheet metal
-  for (const s of [-1, 1]) {
-    const card = new THREE.Mesh(roundedBox(0.04, 0.5, 1.2, s * (S[4].w - 0.1), S[4].belt - 0.27, 0.0 + (ez + dz) * 0.28), softM); g.add(card);
-    g.add(new THREE.Mesh(box(0.05, 0.016, 1.9, s * (S[4].wb - 0.015), S[4].belt + 0.002, 0.0 + (ez + dz) * 0.2), darkM));
-    const rest = new THREE.Mesh(roundedBox(0.09, 0.05, 0.5, s * (S[4].w - 0.13), S[4].belt - 0.2, ez + 0.02), trim(0x2f3137, 0.8)); g.add(rest);
+  // door cards, so the side of the view is not bare sheet metal. They're placed against the sheet as
+  // it really runs: a flank that tucks in towards the belt (the supercar's) let fixed ones poke out.
+  const flankX = (z, y) => {
+    const r = near(z).ring; let x = 0;
+    for (let k = 0; k < RAIL_ROW; k++) {
+      const a = r[k], b = r[k + 1];
+      if (a[1] !== b[1] && (a[1] - y) * (b[1] - y) <= 0) x = Math.max(x, a[0] + (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]));
+    }
+    return x || S[4].w;
+  };
+  const flankMin = (z0, z1, y0, y1) => {
+    let x = 9;
+    for (let i = 0; i <= 10; i++) for (let j = 0; j <= 6; j++) x = Math.min(x, flankX(z0 + (z1 - z0) * i / 10, y0 + (y1 - y0) * j / 6));
+    return x;
+  };
+  const beltY = z => near(z).ring[BELT_ROW][1];
+  const rod = (a, b, r, mat) => {
+    const A = new THREE.Vector3(...a), d = new THREE.Vector3(...b).sub(A), l = d.length();
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, l + 0.004, 8), mat); c.position.copy(A).addScaledVector(d, 0.5);
+    c.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); g.add(c);
+  };
+  {
+    const zc = (ez + dz) * 0.28, z0 = zc - 0.6, z1 = zc + 0.6, bot = S[4].belt - 0.52;
+    let bMin = 9; for (let i = 0; i <= 10; i++) bMin = Math.min(bMin, beltY(z0 + 1.2 * i / 10));
+    const topC = Math.min(S[4].belt - 0.02, bMin - 0.03), cx = flankMin(z0, z1, bot, topC) - 0.045;
+    const zr = ez + 0.02, ry = S[4].belt - 0.2, rx = flankMin(zr - 0.25, zr + 0.25, ry - 0.025, ry + 0.025) - 0.09;
+    // the sill trim follows the belt line from the door's back edge up to the screen
+    // (on the supercar the belt runs on, past the seats, to the rear deck: the rod is pulled out to there)
+    const zBack = spec.marks.slope ? spec.marks.tail + 0.3 : spec.marks.doorR;
+    const sill = grid.filter(c => c.z >= zBack && c.z <= spec.marks.cowl - 0.04);
+    for (const s of [-1, 1]) {
+      g.add(new THREE.Mesh(roundedBox(0.04, topC - bot, 1.2, s * cx, (topC + bot) / 2, zc), softM));
+      g.add(new THREE.Mesh(roundedBox(0.09, 0.05, 0.5, s * rx, ry, zr), trim(0x2f3137, 0.8)));
+      const P = c => { const p = c.ring[BELT_ROW]; return [s * (p[0] - 0.035), p[1] - 0.01, c.z]; };
+      for (let i = 0; i < sill.length - 1; i++) rod(P(sill[i]), P(sill[i + 1]), 0.014, darkM);
+      // round caps so no end of a rod is ever a bare cut
+      for (const c of [sill[0], sill[sill.length - 1]]) { const p = P(c); g.add(new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 6).translate(...p), darkM)); }
+    }
   }
   // seat backs visible in exterior views through the glass
   for (const s of [-1, 1]) {

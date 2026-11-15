@@ -114,9 +114,13 @@ function bake(cx, cz, near, lite) {
   for (let k = 0; k < V; k++) { vert(k, 0, 5); vert(k, gridN, 5); vert(0, k, 5); vert(gridN, k, 5); }
 
   const tex = new Uint8Array(texN * texN * 4), kinds = new Uint8Array(texN * texN), crops = new Uint8Array(texN * texN);
+  // mud for the ground shader (near chunks only): r cover, g standing water, b rut depth
+  const mudT = near ? new Uint8Array(texN * texN * 4) : null;
+  let anyMud = false;
   const d = CHUNK / texN;
   for (let j = 0; j < texN; j++) for (let i = 0; i < texN; i++) {
     const s = surface(ox + (i + 0.5) * d, oz + (j + 0.5) * d, true), p = j * texN + i;
+    if (mudT && s.mudV > 0.01) { anyMud = true; mudT[p * 4] = s.mudV * 255; mudT[p * 4 + 1] = s.pud * 255; mudT[p * 4 + 2] = s.rut * 255; }
     tex[p * 4] = Math.min(255, s.r); tex[p * 4 + 1] = Math.min(255, s.g); tex[p * 4 + 2] = Math.min(255, s.b); tex[p * 4 + 3] = 0;
     kinds[p] = s.panel && s.kind === KIND.PATH ? KIND.PANEL : s.kind; crops[p] = s.crop > 0.5 ? 1 : 0;
   }
@@ -144,6 +148,7 @@ function bake(cx, cz, near, lite) {
 
   const msg = { pos, nor, uv, tex, kinds, near, gridN, texN };
   const list = [pos.buffer, nor.buffer, uv.buffer, tex.buffer, kinds.buffer];
+  if (anyMud) { msg.mud = mudT; list.push(mudT.buffer); }
   if (wet) {
     const sheet = waterSheet(ox, oz, gridN, h, W, shade, texN);
     if (sheet) { msg.water = sheet; list.push(sheet.pos.buffer, sheet.attr.buffer, sheet.sh.buffer, sheet.idx.buffer); }
