@@ -11,6 +11,7 @@ import { Tornadoes, TornadoView, Debris } from './tornado.js';
 import { Flora, WIND, LIT } from './flora.js';
 import { Terrain } from './terrain.js';
 import { CARS, buildCar } from './cars.js';
+import { tunedSpec, tuneOf, dress, initTuning } from './tuning.js';
 import { Vehicle, stepBale, WEATHER } from './physics.js';
 import { Damage } from './damage.js';
 import { FX } from './fx.js';
@@ -151,6 +152,7 @@ addEventListener('resize', resize);
 resize();
 
 // ---- state ----------------------------------------------------------------------------------
+let tuning = null;   // the garage's tuning panel (tuning.js), set up with the menu
 const G = { mode: 'load', adapt: 1, carIdx: 0, car: null, veh: null, dmg: null, cam: 0, crop: 0, felled: 0, airBest: 0, moon: false, lights: false, wipe: 0, ready: false, timeScale: 1, crashes: 0, onFoot: false, bino: 0, binoZoom: 8, hour: START_HOUR, fog: 0, fogGoal: 0, wxT: 2.5, dark: null, rain: 0, lid: 0, wet: 0, storm: false, wx: 0, flash: 0, glassT: 0, bolt: null, windT: 0, trees: 0, hail: 0 };
 // The weather of the region: the sky between the cells, and which cells it keeps round you (weather.js).
 // Rain itself is only where a cell drops it.
@@ -186,8 +188,9 @@ function spawnCar(idx, x, z, heading) {
   const old = G.car;
   if (old) { scene.remove(old.root); old.root.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
   if (G.onFoot) getIn(true);
-  const spec = CARS[idx];
+  const spec = tunedSpec(CARS[idx]);
   const car = buildCar(spec, env);
+  dress(car, tuneOf(spec), false);
   const veh = new Vehicle(spec);
   const y = height(x, z) + spec.phys.comY + 0.1;
   veh.place(x, y, z, heading);
@@ -666,6 +669,7 @@ addEventListener('keydown', e => {
   keys.add(e.code);
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   if (G.mode === 'menu') {
+    if (tuning?.open) { if (e.code === 'Escape') tuning.close(); return; }
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') pick((G.carIdx + 3) % 4);
     if (e.code === 'ArrowRight' || e.code === 'KeyD') pick((G.carIdx + 1) % 4);
     if (e.code === 'Enter' || e.code === 'Space') start();
@@ -783,6 +787,7 @@ function buildMenu() {
   $('rQuit').addEventListener('click', toMenu);
   document.querySelectorAll('#opts [data-q]').forEach(b => b.addEventListener('click', () => setQuality(b.dataset.q)));
   markQ();
+  tuning = initTuning({ getCar: () => G.car, lite: () => !!Q.lite, rebuild: () => spawnCar(G.carIdx, G.home.x, G.home.z, G.home.heading) });
 }
 function markQ() { document.querySelectorAll('#opts [data-q]').forEach(b => b.classList.toggle('on', b.dataset.q === qName)); }
 function setQuality(n) {
@@ -811,6 +816,7 @@ function pick(i) {
   document.querySelectorAll('.card').forEach((c, k) => c.classList.toggle('on', k === i));
   const h = G.home;
   spawnCar(i, h.x, h.z, h.heading);
+  tuning?.sync();
 }
 function start() {
   audio.start();
