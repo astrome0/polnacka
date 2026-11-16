@@ -2,8 +2,8 @@
 // main thread (physics) and in the workers (chunk baking), and both must agree exactly.
 
 export const CHUNK = 128;
-export const KIND = { WHEAT: 0, RAPE: 1, GREEN: 2, MEADOW: 3, PLOUGH: 4, STUBBLE: 5, FOREST: 6, PATH: 7, VERGE: 8, ROAD: 9, BANK: 10, BED: 11, FORD: 12, PANEL: 13 };
-export const OBJ = { BEECH: 0, SPRUCE: 1, BIRCH: 2, OAK: 3, BUSH: 4, ROCK: 5, BALE: 6, BARN: 7, STAND: 8, POLE: 9, POST: 10, HOUSE: 11, CHURCH: 12, RAIL: 13, LOG: 14 };
+export const KIND = { WHEAT: 0, RAPE: 1, GREEN: 2, MEADOW: 3, PLOUGH: 4, STUBBLE: 5, FOREST: 6, PATH: 7, VERGE: 8, ROAD: 9, BANK: 10, BED: 11, FORD: 12, PANEL: 13, SCREE: 14 };
+export const OBJ = { BEECH: 0, SPRUCE: 1, BIRCH: 2, OAK: 3, BUSH: 4, ROCK: 5, BALE: 6, BARN: 7, STAND: 8, POLE: 9, POST: 10, HOUSE: 11, CHURCH: 12, RAIL: 13, LOG: 14, CRAG: 15, PINE: 16 };
 
 // ---- noise ------------------------------------------------------------------------------
 const P = new Uint8Array(512);
@@ -84,6 +84,26 @@ function locate(x, z) {
   L.su = su; L.sv = sv;
   const au = Math.abs(su), av = Math.abs(sv), byU = au < av;
   L.mainD = byU ? au : av; L.mainS = byU ? su : sv; L.mainAlong = byU ? vc : uc; L.mainCross = byU ? av : au;
+  // the mountains: asphalt and farm tracks fade out where the range rises (pushed away, so nothing jumps)
+  const mt = mountainMask(x, z);
+  L.mt = mt; L.mf = mt > MF0 ? sstep(MF0, MF1, mt) : 0; L.serp = false;
+  const g0 = L.mainD, gs = L.mainS, ga = L.mainAlong, gc = L.mainCross, mf = L.mf;
+  if (mf > 0) { const o = 70 * mf; L.pathD += o; L.farmD += o; }
+  // The mountain roads are asphalt roads of their own. Each begins on the grid road it carries on from and
+  // follows it for its first 100 m, but measures the distance from the road a little differently (the grid
+  // measures in its warped frame: 0.3–0.7 m off at 12 m out), and the height of the land depends on that
+  // distance (ditches, bumps): switching from one measure to the other made a step in the land and a wedge
+  // in the paint (Patrik's 1263,-722). So the two are blended by mf (0 at the edge of the massif, 1 over
+  // the next ~60 m, where the mountain road is nearly on the grid road still) instead of switched.
+  if (serpAt(x, z) && SP.d < g0 + 3) {
+    L.mainD = mix(g0, SP.d, mf); L.mainS = mix(gs, SP.s, mf); L.mainAlong = mix(ga, SP.along, mf);
+    L.mainCross = mix(gc, 1e4, mf); L.serp = mf > 0.5;
+    if (mf > 0.5) L.su = L.sv = 1e4;       // (and no village in the massif: villageAmt also fades with mf)
+  } else if (mf > 0) {
+    // a grid road with no mountain road to carry it on ends where the massif begins
+    const k = sstep(0, 0.05, mf);
+    L.mainD = mix(g0, 1e4, k); L.mainS = mix(gs, gs < 0 ? -1e4 : 1e4, k); L.mainCross = mix(gc, 1e4, k);
+  }
   if (L.mainD <= L.pathD) { L.pathD = L.mainD; L.onU = byU; L.along = L.mainAlong; L.style = 3; }
   return L;
 }
@@ -91,7 +111,7 @@ function locate(x, z) {
 // Some crossroads grow a village: flat lawns along all four arms of the junction.
 function villageAmt() {
   if (hash2(L.ku * 3 + 1, L.kv * 5 + 2) > 0.42) return 0;
-  return (1 - sstep(34, 54, L.mainD)) * (1 - sstep(125, 170, Math.max(Math.abs(L.su), Math.abs(L.sv))));
+  return (1 - sstep(34, 54, L.mainD)) * (1 - sstep(125, 170, Math.max(Math.abs(L.su), Math.abs(L.sv)))) * (1 - L.mf);
 }
 export function inVillage(x, z) { locate(x, z); return villageAmt() > 0.5; }
 
@@ -115,7 +135,7 @@ function bigLow(x, z) {
   const n = fbm(x * 0.00095 + 5, z * 0.00095 + 2, 3);
   return n > 0 ? n * n * 90 + n * 18 : n * 26;
 }
-function hLow(x, z) { return bigLow(x, z) + fbm(x * 0.0041, z * 0.0041, 2) * 9; }
+function hLow(x, z) { return bigLow(x, z) + fbm(x * 0.0041, z * 0.0041, 2) * 9 + mountain(x, z); }
 // natural kickers: sharp grassy crests, never placed by hand
 function hBump(x, z) {
   const r = 1 - Math.abs(noise(x * 0.0115 + 8.1, z * 0.0115 - 3.3) * 1.5);
@@ -136,7 +156,23 @@ const stream = kind => ({ on: false, kind, d: 0, w: 0, lvl: 0, depth: 0, fx: 0, 
 const R = stream(1), RB = stream(1), C = stream(2), D = stream(3);
 const TAB = new Map();
 
-const riverC = (m, p) => m * R_GAP + R_OFF + noise(p * 0.00085 + m * 3.7, m * 9.13 + 0.4) * 230 + noise(p * 0.0036 - m * 2.3, m * 4.41 + 20.5) * 46 + noise(p * 0.012, m * 1.37 + 0.5) * 9;
+// The two rivers either side of the massif (world.js "mountains") swing out round it, so it has room
+// to rise gently instead of being cut into walls by their valleys.
+const R_DET = 620, R_DET_LEN = 5200;
+const detour = (m, p) => {
+  if (m !== -1 && m !== -2) return 0;
+  const t = Math.abs(p) / R_DET_LEN;
+  return t >= 1 ? 0 : (m === -1 ? 1 : -1) * R_DET * (1 - sstep(0, 1, t));
+};
+// which river is nearest: by the gap, except where the detour has moved two of them
+function riverIndex(p, q) {
+  const m = Math.round((q - R_OFF) / R_GAP);
+  if (Math.abs(p) >= R_DET_LEN) return m;
+  let best = m, bd = 1e9;
+  for (let i = m - 1; i <= m + 1; i++) { const d = Math.abs(q - riverC(i, p)); if (d < bd) { bd = d; best = i; } }
+  return best;
+}
+const riverC = (m, p) => m * R_GAP + R_OFF + detour(m, p) + noise(p * 0.00085 + m * 3.7, m * 9.13 + 0.4) * 230 + noise(p * 0.0036 - m * 2.3, m * 4.41 + 20.5) * 46 + noise(p * 0.012, m * 1.37 + 0.5) * 9;
 const creekP = (k, q) => k * C_GAP + noise(q * 0.0032 + k * 1.7, k * 2.93 + 0.5) * 70 + noise(q * 0.013, k * 0.77 + 3.1) * 18 + noise(q * 0.041 + k, 7.7) * 4.5;
 // A river's level drifts over kilometres and follows only the broadest lows of the land, slowly
 // enough that twenty metres of water still read as level.
@@ -148,8 +184,8 @@ function riverLevel(m, p, c) {
 }
 function scanRiver(s, p, q, x, z) {
   s.on = false;
-  const m = Math.round((q - R_OFF) / R_GAP);
-  if (Math.abs(q - R_OFF - m * R_GAP) > R_SWING + R_VALLEY * 1.5) return;
+  const m = riverIndex(p, q);
+  if (Math.abs(q - R_OFF - m * R_GAP) > R_SWING + R_DET + R_VALLEY * 1.5) return;
   const c = riverC(m, p), dq = q - c;
   if (Math.abs(dq) > R_VALLEY * 1.5) return;
   const sl = (riverC(m, p + 5) - riverC(m, p - 5)) / 10, l = Math.sqrt(1 + sl * sl);
@@ -211,14 +247,17 @@ function scanCreek(p, q) {
   if (Math.abs(p - k * C_GAP) > 92 + C_REACH * 1.6) return;
   const dp = p - creekP(k, q);
   if (Math.abs(dp) > C_REACH * 1.6) return;
-  const m = Math.round((q - R_OFF) / R_GAP), side = q > riverC(m, p) ? 1 : -1;
+  const m = riverIndex(p, q), side = q > riverC(m, p) ? 1 : -1;
   if (hash2(k * 5 + side, m * 3 + 2) > 0.66) return;
   const t = creekTable(k, m, side), s = (q - t.q0) * side;
   if (!t.len || s < -14 || s > t.len) return;
   const f = Math.max(0, s / C_STEP), i = Math.min(t.lev.length - 2, f | 0), a = f - i, drop = t.lev[i + 1] - t.lev[i];
   const sl = (creekP(k, q + 3) - creekP(k, q - 3)) / 6, l = Math.sqrt(1 + sl * sl), young = Math.max(0, 1 - s / t.len);
   if (Math.abs(dp) / l > C_REACH) return;
-  C.on = true; C.fade = sstep(0, 46, t.len - s) * sstep(-14, -3, s);
+  // (no creeks up the mountains yet: their beds don't know the serpentine's cuttings)
+  C.fade = sstep(0, 46, t.len - s) * sstep(-14, -3, s) * (1 - L.mf);
+  if (C.fade <= 0.001) return;
+  C.on = true;
   C.d = Math.abs(dp) / l; C.w = t.big * (0.9 + 2.5 * Math.pow(young, 0.8)) * C.fade; C.lvl = t.lev[i] + drop * a; C.depth = (0.24 + 0.36 * young) * C.fade;
   C.fx = -side * sl / l * RC + side / l * RS; C.fz = -side * sl / l * RS - side / l * RC;
   const fall = slopeOf(t.lev, i, a) / C_STEP;
@@ -258,6 +297,7 @@ function ditchTable(main, axis, line, n, side) {
 }
 function scanDitch() {
   D.on = false;
+  if (L.serp) return;
   const main = L.style === 3;
   if (main ? L.mainD > 18 || L.mainCross < 24 : L.pathD > 14) return;
   const byU = main ? Math.abs(L.su) < Math.abs(L.sv) : L.onU, axis = byU ? 0 : 1, line = main ? (byU ? L.ku : L.kv) : (byU ? L.li : L.lj);
@@ -359,15 +399,364 @@ function dryHeight(x, z) {
   const m = Math.min(sstep(3, 15, pd), sstep(6, 25, md)) * (1 - va);
   const bump = m > 0 ? m * hBump(x, z) : 0;
   h += bump;
+  if (SP.n) h = serpHeight(h);
   // shallow ditches beside the road
   if (L.style !== 3 && pd < 8 && pd > 3) { const t = (pd - 5.2) / 1.9; h -= 0.42 * Math.max(0, 1 - t * t); }
   // the road's ditch stops where a farm track joins it, or every crossing would be a jump
   if (md < 11.6 && md > 6.2) { const t = (md - 8.9) / 2.6; h -= 0.5 * Math.max(0, 1 - t * t) * (1 - va) * sstep(2.5, 7, L.farmD); }
   // terrace step on some field borders
   const ed = Math.min(L.du, L.dv);
-  if (va === 0 && ed < 9 && pd > 9 && hash2(L.li, L.lj + 7) < 0.3) h += 0.8 * (1 - sstep(0, 9, ed));
+  if (va === 0 && ed < 9 && pd > 9 && hash2(L.li, L.lj + 7) < 0.3) h += 0.8 * (1 - sstep(0, 9, ed)) * (1 - L.mf);
   return h;
 }
+
+// ---- mountains -----------------------------------------------------------------------------
+// A massif after Praděd (Hrubý Jeseník), a couple of kilometres from the start, between two river
+// valleys. Not a wall: the land starts to rise kilometres out, in long gentle foothills with fields
+// on them, then the forested massif, and on it a ridge of broad rounded summits with saddles between,
+// the highest ~265 m up. Deep valleys run down between the spurs. Nothing is steeper than ~15° but
+// the valley sides. Built from smooth domes (1 - smoothstep: flat on top, flat at the foot).
+// Everything in the rivers' frame: p along them, q across.
+const MP = 0, MQ = -1.5 * R_GAP;                       // the massif's middle, halfway between rivers -1 and -2
+const BASE = [3300, 2300, 62];                         // foothills: half lengths along p / q, height
+const BODY = [1950, 1250, 120];                        // the massif
+// the summit ridge: [p, q offset, half length, half width, height]; broad, so the tops are plateaus
+const PEAKS = [[260, 40, 1150, 920, 82], [-1250, -120, 950, 700, 84], [1550, 90, 800, 640, 46]];
+const MF0 = 0.28, MF1 = 0.36;     // over this rise of the mask the roads and fields give way
+const dome = (dp, dq, a, b) => { const e = Math.sqrt((dp / a) ** 2 + (dq / b) ** 2); return e >= 1 ? 0 : 1 - sstep(0, 1, e); };
+// the rivers keep their valleys: the land only rises well clear of them (dq: distance from the nearest)
+function riverClear(p, q) {
+  const k = Math.round(q / R_GAP);
+  let dq = 1e9;
+  for (let i = k - 1; i <= k + 1; i++) dq = Math.min(dq, Math.abs(q - riverC(i, p)));
+  return sstep(60, 700, dq);
+}
+// 0..1: how far into the massif proper (the forest and the mountain road; roads and fields give way at MF0..MF1)
+const MT = { x: NaN, z: NaN, m: 0 };
+function mountainMask(x, z) {
+  if (x === MT.x && z === MT.z) return MT.m;
+  MT.x = x; MT.z = z;
+  const p = RC * x + RS * z - MP, q = -RS * x + RC * z - MQ;
+  const e = Math.sqrt((p / BODY[0]) ** 2 + (q / BODY[1]) ** 2) + fbm(x * 0.00055 + 7.3, z * 0.00055 - 3.1, 2) * 0.12;
+  if (e > 1) return (MT.m = 0);
+  return (MT.m = (1 - sstep(0.45, 0.95, e)) * riverClear(p + MP, q + MQ));
+}
+const MH = { x: NaN, z: NaN, d: 1, h: 0 };
+function mountain(x, z, detail = true) {
+  if (x === MH.x && z === MH.z && detail === !!MH.d) return MH.h;
+  MH.x = x; MH.z = z; MH.d = detail;
+  const p = RC * x + RS * z - MP, q = -RS * x + RC * z - MQ;
+  const base = dome(p, q, BASE[0], BASE[1]);
+  if (base <= 0) return (MH.h = 0);
+  let h = base * BASE[2] + dome(p, q, BODY[0], BODY[1]) * BODY[2];
+  for (const [pp, qq, a, b, H] of PEAKS) h += dome(p - pp, q - qq, a, b) * H;
+  // valleys between the spurs, running out from the main summit and bending a little as they go
+  const r = Math.hypot(p - PEAKS[0][0], q - PEAKS[0][1]);
+  if (r > 250) {
+    const cx = (p - PEAKS[0][0]) / r, cz = (q - PEAKS[0][1]) / r;
+    const v = fbm(cx * 2.1 + r * 0.00035 + 4.2, cz * 2.1 - r * 0.00028 - 1.7, 2);
+    h -= 48 * sstep(0.06, 0.32, v) * sstep(250, 800, r) * (1 - sstep(1600, 2700, r)) * base;
+  }
+  // the land's own small rolls, more of them up on the massif
+  if (detail) h += (fbm(x * 0.0042 + 17, z * 0.0042 - 3, 2) * 9 + noise(x * 0.013 - 4, z * 0.013 + 9) * 2.5) * Math.min(1, base * 2);
+  return (MH.h = h * riverClear(p + MP, q + MQ));
+}
+// the broad shape only: what the mountain road is laid out on, and where the trees stop
+function hSteer(x, z) { return bigLow(x, z) + mountain(x, z, false); }
+// the tree line sits about two thirds of the way up: the summits stand bare above the forest
+const treeLine = (x, z) => 192 + noise(x * 0.003 + 5, z * 0.003) * 14;
+// 0 out in the fields, 1 where the range has taken over (for traffic, races and the like)
+export function mountainAt(x, z) { const m = mountainMask(x, z); return m > MF0 ? sstep(MF0, MF1, m) : 0; }
+// the ground normal's y from the broad land (1 flat, ~.5 where the ground shader shows bare rock)
+export function slopeUp(x, z) {
+  const h0 = hLow(x, z), dx = hLow(x + 2, z) - h0, dz = hLow(x, z + 2) - h0;
+  return 2 / Math.sqrt(dx * dx + dz * dz + 4);
+}
+// the same from the real ground (road cuttings and all); leaves locate()/scan() on (x, z) as it found them
+function groundUp(x, z) {
+  const h0 = height(x, z), dx = height(x + 2, z) - h0, dz = height(x, z + 2) - h0;
+  locate(x, z); scan(x, z);
+  return 2 / Math.sqrt(dx * dx + dz * dz + 4);
+}
+// Scree: stone broken off the faces above, lying in fans and tongues on the slopes just under the
+// angle where bare rock shows. More of it up high, where frost does the breaking and nothing grows
+// over it. up: the ground normal's y. 0..1, shared by the baked ground, the physics and the far range.
+export function screeAt(x, z, up) {
+  const m = mountainMask(x, z);
+  if (m <= MF0 || up > 0.9) return 0;
+  // mostly above the tree line; in the forest only the odd long tongue that came down through it
+  const band = 1 - sstep(0.76, 0.9, up), high = sstep(-30, 40, hSteer(x, z) - treeLine(x, z));
+  // in patches and tongues, never one grey sheet over the whole slope
+  const tongue = fbm(x * 0.016 + 11, z * 0.016 - 4, 2) + noise(x * 0.07 - 3, z * 0.07 + 8) * 0.14;
+  return band * sstep(MF0, MF1 + 0.08, m) * sstep(0.14, 0.34, tongue + high * 0.12 - (1 - band) * 0.2) * (0.3 + 0.7 * high);
+}
+// after a locate: what grows here. Spruce forest up the range, open alpine grass above the tree line.
+let alpine = 0, tlOver = -1e9;     // (tlOver: metres above the tree line, after kindHere on the range)
+function kindHere(kc, x, z) {
+  alpine = 0; tlOver = -1e9;
+  if (L.mf <= 0 || L.mf + noise(x * 0.011, z * 0.011) * 0.35 < 0.45) return kc;
+  const over = tlOver = hSteer(x, z) - treeLine(x, z);
+  if (over > 0) { alpine = sstep(0, 25, over); return KIND.MEADOW; }
+  return KIND.FOREST;
+}
+// Kosodřevina: a belt of dwarf pine from the last thin spruces up to some 60 m over the tree line,
+// in big clumps with meadow between them. 0..1, over = metres above the tree line.
+function pineBelt(x, z, over) {
+  if (over < -45 || over > 70) return 0;
+  const belt = over < 0 ? sstep(-45, -5, over) * 0.65 : 1 - sstep(15, 65, over);
+  return belt * sstep(-0.2, 0.15, noise(x * 0.016 + 2, z * 0.016 - 6) + noise(x * 0.06, z * 0.06) * 0.25);
+}
+// for the far range: how dark with dwarf pine the land is here
+export function pineAt(x, z) { locate(x, z); kindHere(KIND.MEADOW, x, z); return tlOver > -1e8 ? pineBelt(x, z, tlOver) : 0; }
+
+// ---- the serpentine ------------------------------------------------------------------------
+// Laid out once (here and in every worker, the same way): a walker starts where an asphalt road
+// fades out at the foot of the massif and climbs to the main summit. Like the road up Praděd it
+// winds round the mountain at a gentle grade, heading for the top as directly as the slope allows
+// and swinging along it where it can't; only where that would lead away from the top does it turn
+// back in a hairpin. It lies on the land (the grade is the land's), so there are no deep cuttings.
+const SR_STEP = 4, SR_REACH = 70, SR_CELL = 64, SR_GRADE = 0.07;
+let SERP = null;
+function buildSerp() {
+  const toX = (p, q) => RC * p - RS * q, toZ = (p, q) => RS * p + RC * q;
+  // the summit: the top of the main peak's dome
+  let top = -1e9, tx = 0, tz = 0;
+  const P0 = MP + PEAKS[0][0], Q0 = MQ + PEAKS[0][1];
+  for (let p = P0 - 320; p <= P0 + 320; p += 16) for (let q = Q0 - 320; q <= Q0 + 320; q += 16) {
+    const x = toX(p, q), z = toZ(p, q), h = hLow(x, z);
+    if (h > top) { top = h; tx = x; tz = z; }
+  }
+  // the start: where an asphalt road enters the massif, near the summit and on the side you come from
+  // (the fields round the origin), with no river in between
+  const corners = [[-1.2, -1.2], [1.2, -1.2], [-1.2, 1.2], [1.2, 1.2]].map(([a, b]) => { const x = toX(MP + a * BODY[0], MQ + b * BODY[1]), z = toZ(MP + a * BODY[0], MQ + b * BODY[1]); return [CA * x + SA * z, -SA * x + CA * z]; });
+  const us = corners.map(c => c[0]), vs = corners.map(c => c[1]);
+  const riverFree = (x0, z0, x1, z1) => {
+    const n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 40);
+    for (let i = 0; i <= n; i++) {
+      const x = mix(x0, x1, i / n), z = mix(z0, z1, i / n), p = RC * x + RS * z, q = -RS * x + RC * z, k = Math.round(q / R_GAP);
+      for (let j = k - 1; j <= k + 1; j++) if (Math.abs(q - riverC(j, p)) < 170) return false;
+    }
+    return true;
+  };
+  // every asphalt road that runs into the massif: each one carries on up it as a mountain road
+  const entries = [];
+  for (const axis of [0, 1]) {
+    const lo = axis ? Math.min(...vs) : Math.min(...us), hi = axis ? Math.max(...vs) : Math.max(...us);
+    const k0 = axis ? Math.floor((lo / CH - 2) / MAIN_V) - 1 : Math.floor((lo / CW - 1) / MAIN_U) - 1;
+    const k1 = axis ? Math.ceil((hi / CH - 2) / MAIN_V) + 1 : Math.ceil((hi / CW - 1) / MAIN_U) + 1;
+    const a0 = axis ? Math.min(...us) : Math.min(...vs), a1 = axis ? Math.max(...us) : Math.max(...vs);
+    for (let k = k0; k <= k1; k++) {
+      let prev = null;
+      for (let a = a0; a <= a1; a += 8) {
+        const pt = onRoad(axis, k, 0, a), m = mountainMask(pt[0], pt[1]);
+        if (prev && (prev.m < MF0) !== (m < MF0)) {
+          // the outside point is the start, heading into the range
+          const [o, i] = m >= MF0 ? [prev.pt, pt] : [pt, prev.pt];
+          if (riverFree(o[0], o[1], tx, tz)) {
+            const l = Math.hypot(i[0] - o[0], i[1] - o[1]), sgn = m >= MF0 ? 1 : -1;
+            entries.push({ d: Math.hypot(tx - o[0], tz - o[1]) + Math.hypot(o[0], o[1]) * 0.7, x: o[0], z: o[1], hx: (i[0] - o[0]) / l, hz: (i[1] - o[1]) / l, axis, k, a: sgn > 0 ? a - 8 : a, sgn });
+          }
+        }
+        prev = { pt, m };
+      }
+    }
+  }
+  if (!entries.length) return { n: 0 };
+  // the main road comes from the side of the start (the fields round the origin); the others from
+  // wherever else a road reaches the foot, a few hundred metres apart at least
+  entries.sort((a, b) => a.d - b.d);
+  const starts = [];
+  for (const e of entries) if (starts.length < 5 && starts.every(s => Math.hypot(s.x - e.x, s.z - e.z) > 450)) starts.push(e);
+  // points of the roads laid so far, in 32 m cells, for the later ones to join onto
+  const JC = 32, joinCells = new Map(), ckey = (x, z) => Math.floor(x / JC) * 100003 + Math.floor(z / JC);
+  const roads = [];
+  for (const st of starts) {
+    const r = walk(st, roads.length > 0);
+    if (r.xs.length < 8) continue;
+    const id = roads.length;
+    roads.push(r);
+    r.xs.forEach((px, i) => { const k = ckey(px, r.zs[i]); (joinCells.get(k) || joinCells.set(k, []).get(k)).push([px, r.zs[i], r.road[i], id, i]); });
+  }
+  // the nearest point of an earlier road within reach, or null
+  function joinAt(x, z, reach) {
+    let best = null;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const p of joinCells.get(ckey(x + a * JC, z + b * JC)) || []) {
+      const d = Math.hypot(p[0] - x, p[1] - z);
+      if (d < reach && (!best || d < best.d)) best = { d, p };
+    }
+    return best && best.p;
+  }
+  // The walker wants the top. Where the slope towards it is gentler than the grade it just goes; where
+  // it's steeper it takes the line across the slope that climbs at exactly the grade, on the side
+  // that leans towards the top (so on a dome it winds round, the way the road goes up Praděd).
+  // When even that line leads away from the top it changes side, through a hairpin.
+  // The road keeps its own height Tr, climbing at the grade. Across a slope it steers to where the land
+  // is that high, so it lies on the land; a hairpin is built level-ish into the slope (a small cutting).
+  // A later road ends where it meets an earlier one: a junction.
+  function walk(st, joins) {
+  // It begins 40 m back down the road it carries on from, on that road's own points (a straight line
+  // back would wander a few metres off it, and the paint would flip between the two)
+  let x = st.x, z = st.z, hx = st.hx, hz = st.hz;
+  // al[i]: the paint's distance along the road. On the grid road's own points it is that road's own
+  // (so the dashes carry on over the seam), after that it counts on in metres.
+  const xs = [], zs = [], road = [], al = [];
+  for (let s = 40; s > 0; s -= 4) { const p = onRoad(st.axis, st.k, 0, st.a - st.sgn * s); xs.push(p[0]); zs.push(p[1]); road.push(hLow(p[0], p[1])); al.push(st.a - st.sgn * s); }
+  xs.push(x); zs.push(z); road.push(hLow(x, z)); al.push(st.a);
+  // ...and 60 m on along it too. The grid road stops where the massif begins, a line that crosses it at
+  // an angle, so its two edges end metres apart; if the mountain road had turned off by then there'd be
+  // a wedge of asphalt and a notch in the edge line. Only past that does it head for the top.
+  for (let s = 4; s <= 60; s += 4) {
+    const p = onRoad(st.axis, st.k, 0, st.a + st.sgn * s), dxp = p[0] - x, dzp = p[1] - z, lp = Math.hypot(dxp, dzp) || 1;
+    hx = dxp / lp; hz = dzp / lp; x = p[0]; z = p[1];
+    xs.push(x); zs.push(z); road.push(hLow(x, z)); al.push(st.a + st.sgn * s);
+  }
+  let side = 0, hairpin = 0, turn = 1, Tr = road[road.length - 1], lastPin = -1e9, join = null;
+  for (let n = 0; n < 9000; n++) {
+    const land = hLow(x, z);
+    let ux = tx - x, uz = tz - z;
+    const left = Math.hypot(ux, uz);
+    if (left < 12) break;
+    if (joins && n > 40) { const j = joinAt(x, z, 12); if (j) { xs.push(j[0]); zs.push(j[1]); road.push(j[2]); al.push(al[al.length - 1] + st.sgn * Math.hypot(j[0] - x, j[1] - z)); join = { r: j[3], i: j[4] }; break; } }
+    ux /= left; uz /= left;
+    // (the land's own rolls count too: they add as much as the massif's slope does in places)
+    const e = 10, gx = (hLow(x + e, z) - hLow(x - e, z)) / (2 * e), gz = (hLow(x, z + e) - hLow(x, z - e)) / (2 * e), sl = Math.hypot(gx, gz);
+    let dx = ux, dz = uz;
+    // the last few metres of height: straight on to the top
+    if (sl > SR_GRADE && (gx * ux + gz * uz) > SR_GRADE * 0.8 && land < top - 4 && Tr < top - 6) {
+      const nx = gx / sl, nz = gz / sl, k = SR_GRADE / sl, w = Math.sqrt(1 - k * k);
+      // the two lines that climb at the grade, one either side of straight up
+      const ax = nx * k - nz * w, az = nz * k + nx * w, bx = nx * k + nz * w, bz = nz * k - nx * w;
+      const da = ax * ux + az * uz, db = bx * ux + bz * uz;
+      if (!side) side = da >= db ? 1 : -1;
+      // change side when the one we're on leads away from the top and the other one doesn't
+      const mine = side > 0 ? da : db, other = side > 0 ? db : da;
+      // (only when it clearly leads away: a bump or a spur is just wound round. And never two bends one
+      // after the other: a leg is at least 300 m, or they'd tie a knot)
+      if (!hairpin && n - lastPin > 75 && mine < -0.45 && other > 0.1) { side = -side; hairpin = 1; lastPin = n; turn = hx * nz - hz * nx > 0 ? 1 : -1; }
+      dx = side > 0 ? ax : bx; dz = side > 0 ? az : bz;
+      // onto the land at the road's height: a little up the slope when the land has dropped below it
+      const pull = Math.max(-0.8, Math.min(0.8, (Tr - land) * 0.08));
+      dx += nx * pull; dz += nz * pull;
+      // (never climbing on above the land: where it's got ahead, it waits for the land to catch up)
+      // (a hairpin climbs steeper, the way real ones do: the next leg is up the slope)
+      Tr = Math.min(Tr + SR_STEP * (hairpin ? 0.1 : SR_GRADE), Math.max(Tr, land + 1.5));
+    } else Tr = Math.max(Tr - SR_STEP * 0.1, Math.min(land, Tr + SR_STEP * 0.1));
+    let da = Math.atan2(dz, dx) - Math.atan2(hz, hx);
+    da -= Math.round(da / (2 * Math.PI)) * 2 * Math.PI;
+    if (hairpin) {
+      // round the bend the uphill way, all of it, at a hairpin's radius
+      if (Math.sign(da) !== turn && Math.abs(da) > 0.3) da += 2 * Math.PI * turn;
+      if (Math.abs(da) < 0.12) hairpin = 0;
+    }
+    const rate = SR_STEP / (hairpin ? 14 : left < 120 ? 30 : 55);
+    da = Math.max(-rate, Math.min(rate, da));
+    const c = Math.cos(da), s = Math.sin(da), nx = hx * c - hz * s;
+    hz = hx * s + hz * c; hx = nx;
+    x += hx * SR_STEP; z += hz * SR_STEP;
+    al.push(al[al.length - 1] + st.sgn * SR_STEP);
+    xs.push(x); zs.push(z); road.push(Tr);
+  }
+  return { xs, zs, road, join, al, st };
+  }
+  if (!roads.length) return { n: 0 };
+  // Each road: smooth its heights, then hold the grade both ways (its ends stay put: the foot, and the
+  // top or the junction). Then all of them one after the other, with a break between (brk[i]: no segment i→i+1).
+  const xs = [], zs = [], Tall = [], Sall = [], Dall = [], brk = [], ends = [], flip = [];
+  for (const r of roads) {
+    const N = r.xs.length, T = Float64Array.from(r.road), S = new Float64Array(N);
+    // a junction meets the other road at that road's finished height (it was smoothed first), or there'd be a step
+    if (r.join) T[N - 1] = roads[r.join.r].T[r.join.i];
+    r.T = T;
+    for (let i = 1; i < N; i++) S[i] = S[i - 1] + Math.hypot(r.xs[i] - r.xs[i - 1], r.zs[i] - r.zs[i - 1]);
+    for (let pass = 0; pass < 3; pass++) {
+      const src = T.slice();
+      for (let i = 1; i < N - 1; i++) { let s = 0, c = 0; for (let j = Math.max(0, i - 6); j <= Math.min(N - 1, i + 6); j++) { s += src[j]; c++; } T[i] = s / c; }
+    }
+    // (a junction's end is fixed: the pass back from it brings the road up or down to meet it)
+    for (let i = 1; i < N - (r.join ? 1 : 0); i++) { const g = 0.105 * (S[i] - S[i - 1]); T[i] = Math.max(T[i - 1] - g, Math.min(T[i - 1] + g, T[i])); }
+    for (let i = N - 2; i >= 1; i--) { const g = 0.105 * (S[i + 1] - S[i]); T[i] = Math.max(T[i + 1] - g, Math.min(T[i + 1] + g, T[i])); }
+    // Which side is "+" for the paint: the grid road's (lineS), which the mountain road carries on from, or
+    // the signed distance would flip sign at the seam and the paint's interpolation would draw a stray line
+    const bx = r.xs[1] - r.xs[0], bz = r.zs[1] - r.zs[0], bl = Math.hypot(bx, bz) || 1;
+    const fl = lineS(r.xs[0] - bz / bl * 2, r.zs[0] + bx / bl * 2, r.st.axis, r.st.k) > 0 ? 1 : -1;
+    ends.push(xs.length);
+    for (let i = 0; i < N; i++) { xs.push(r.xs[i]); zs.push(r.zs[i]); Tall.push(T[i]); Sall.push(r.al[i]); Dall.push(S[i]); flip.push(fl); brk.push(i === N - 1 ? 1 : 0); }
+  }
+  const N = xs.length, T = Float64Array.from(Tall), S = Float64Array.from(Sall), D = Float64Array.from(Dall), B = Uint8Array.from(brk), F = Int8Array.from(flip);
+  // which segments reach into each grid cell
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (let i = 0; i < N; i++) { x0 = Math.min(x0, xs[i]); z0 = Math.min(z0, zs[i]); x1 = Math.max(x1, xs[i]); z1 = Math.max(z1, zs[i]); }
+  x0 -= SR_REACH; z0 -= SR_REACH; x1 += SR_REACH; z1 += SR_REACH;
+  const gw = Math.ceil((x1 - x0) / SR_CELL), gh = Math.ceil((z1 - z0) / SR_CELL), cells = Array.from({ length: gw * gh }, () => []);
+  for (let i = 0; i < N - 1; i++) {
+    if (B[i]) continue;
+    const ca = Math.floor((Math.min(xs[i], xs[i + 1]) - SR_REACH - x0) / SR_CELL), cb = Math.floor((Math.max(xs[i], xs[i + 1]) + SR_REACH - x0) / SR_CELL);
+    const ra = Math.floor((Math.min(zs[i], zs[i + 1]) - SR_REACH - z0) / SR_CELL), rb = Math.floor((Math.max(zs[i], zs[i + 1]) + SR_REACH - z0) / SR_CELL);
+    for (let c = Math.max(0, ca); c <= Math.min(gw - 1, cb); c++) for (let r = Math.max(0, ra); r <= Math.min(gh - 1, rb); r++) cells[r * gw + c].push(i);
+  }
+  return { n: N, xs, zs, T, S, D, brk: B, flip: F, ends, x0, z0, x1, z1, gw, gh, cells: cells.map(c => Int32Array.from(c)), top: { x: tx, z: tz }, start: { x: xs[0], z: zs[0] }, mark: new Int32Array(N), dist: new Float64Array(N), stamp: 0 };
+}
+// After serpAt: SP.d/s/along for the nearest point of the road; SPd/SPt for each separate pass of it within reach
+const SP = { x: NaN, z: NaN, n: 0, d: 1e9, s: 0, along: 0, hit: false };
+const SPd = new Float64Array(16), SPt = new Float64Array(16), SPf = new Float64Array(16);
+const SG = { d: 0, t: 0, side: 0, raw: 0 };
+function segDist(R, i, x, z) {
+  const ax = R.xs[i], az = R.zs[i], bx = R.xs[i + 1] - ax, bz = R.zs[i + 1] - az, l2 = bx * bx + bz * bz;
+  const raw = ((x - ax) * bx + (z - az) * bz) / l2, t = Math.max(0, Math.min(1, raw)), dx = x - ax - bx * t, dz = z - az - bz * t;
+  SG.d = Math.sqrt(dx * dx + dz * dz); SG.t = t; SG.side = bx * dz - bz * dx; SG.raw = raw;
+  return SG.d;
+}
+function serpAt(x, z) {
+  if (x === SP.x && z === SP.z) return SP.hit;
+  SP.x = x; SP.z = z; SP.n = 0; SP.d = 1e9; SP.hit = false;
+  if (mountainMask(x, z) <= 0.02) return false;     // (never near the road, so every thread agrees without building it)
+  const R = SERP ||= buildSerp();
+  if (!R.n || x < R.x0 || x >= R.x1 || z < R.z0 || z >= R.z1) return false;
+  const list = R.cells[Math.floor((z - R.z0) / SR_CELL) * R.gw + Math.floor((x - R.x0) / SR_CELL)];
+  if (!list.length) return false;
+  const st = ++R.stamp, last = R.n - 2;
+  const dAt = i => { if (R.mark[i] !== st) { R.mark[i] = st; R.dist[i] = segDist(R, i, x, z); } return R.dist[i]; };
+  for (let k = 0; k < list.length; k++) {
+    const i = list[k], d = dAt(i);
+    if (d > SR_REACH) continue;
+    // one entry per pass of the road near here: a local minimum along it (never across the break between two roads)
+    if (i > 0 && !R.brk[i - 1] && dAt(i - 1) <= d) continue;
+    if (i < last && !R.brk[i + 1] && dAt(i + 1) < d) continue;
+    segDist(R, i, x, z);
+    // Behind the first point of a road there is no road (it carries on as the grid road, which has its own
+    // distance there): a round cap would claim points a few metres off the line with a bigger distance,
+    // and the paint would jump (Patrik's spot at 1263,-722).
+    if (SG.raw < 0 && (i === 0 || R.brk[i - 1])) continue;
+    const T = mix(R.T[i], R.T[i + 1], SG.t);
+    // the pull of the land onto the road fades in over the road's first 80 m: starting at full strength
+    // it cut a step of a metre or more across the hillside right at the first point (Patrik's wedge)
+    if (SP.n < 16) { SPd[SP.n] = d; SPt[SP.n] = T; SPf[SP.n] = sstep(0, 80, mix(R.D[i], R.D[i + 1], SG.t)); SP.n++; }
+    if (d < SP.d) { SP.d = d; SP.s = (SG.side < 0 ? -d : d) * R.flip[i]; SP.along = mix(R.S[i], R.S[i + 1], SG.t); }
+  }
+  SP.hit = SP.n > 0;
+  return SP.hit;
+}
+// the land h pulled onto the road: flat across it, then a cutting or an embankment as steep as a real one
+function serpHeight(h) {
+  // Each pass pulls by how close its edge is (inverse distance): on its own tarmac a pass is
+  // all there is, and between two legs of the zigzag the land runs as one even slope from one to the other.
+  let A = 0, w = 0, t = 0;
+  for (let i = 0; i < SP.n; i++) {
+    const r1 = Math.max(9, Math.min(64, 7 + Math.abs(h - SPt[i]) * 1.7)), a = (1 - sstep(6.2, r1, SPd[i])) * SPf[i];
+    if (a <= 0) continue;
+    const e = Math.max(0, SPd[i] - 6.2) + 0.05, k = a / Math.pow(e, 1.3);
+    w += k; t += k * SPt[i]; if (a > A) A = a;
+  }
+  return w > 0 ? mix(h, t / w, A) : h;
+}
+// for tests: the land before any road is cut into it
+export function landLow(x, z) { return hLow(x, z); }
+// for tests and the far view (range.js)
+export function serpentine() { SERP ||= buildSerp(); return SERP; }
+// the range's footprint in the rivers' frame: x = RC p - RS q, z = RS p + RC q
+export function rangeBox() { return { p: MP, q: MQ, lenP: BASE[0], lenQ: BASE[1], RC, RS }; }
+// the same for the shaders (HAZE in flora.js), as plain numbers
+export const RANGE = { p: MP, q: MQ, lenP: BASE[0], lenQ: BASE[1], RC, RS };
 export function normal(x, z, out) {
   const e = 0.7;
   const dx = height(x + e, z) - height(x - e, z), dz = height(x, z + e) - height(x, z - e);
@@ -381,11 +770,13 @@ const S = { kind: 0, r: 0, g: 0, b: 0, crop: 0, mu: 1, rough: 0, drag: 0, h: 0, 
 const put = (r, g, b) => { S.r = r; S.g = g; S.b = b; };
 const blend = (r, g, b, t) => { S.r = mix(S.r, r, t); S.g = mix(S.g, g, t); S.b = mix(S.b, b, t); };
 
-export function isForest(x, z) { locate(x, z); return isForestCell(L.i, L.j); }
+export function isForest(x, z) { locate(x, z); return kindHere(isForestCell(L.i, L.j) ? KIND.FOREST : KIND.MEADOW, x, z) === KIND.FOREST; }
 // What a forest is made of here: 0 spruce, 1 beech and oak, 2 a light birch grove.
 // Pure noise, so trees, floor colour and undergrowth all agree without asking each other.
 export const FOREST = { SPRUCE: 0, BROAD: 1, BIRCH: 2 };
 export function forestType(x, z) {
+  // the range is spruce, with a few birches
+  if (mountainMask(x, z) > 0.4 + noise(x * 0.007, z * 0.007) * 0.12) return fbm(x * 0.0085 - 31, z * 0.0085 + 17, 2) > 0.32 ? FOREST.BIRCH : FOREST.SPRUCE;
   if (fbm(x * 0.012 + 4, z * 0.012, 2) > 0.08) return FOREST.SPRUCE;
   return fbm(x * 0.0085 - 31, z * 0.0085 + 17, 2) > 0.1 ? FOREST.BIRCH : FOREST.BROAD;
 }
@@ -395,12 +786,13 @@ export function forestClearing(x, z) { return fbm(x * 0.024 + 2, z * 0.024 - 9, 
 export function trackDist(x, z) { locate(x, z); return L.pathD; }
 
 // baked: for the ground texture, which shows the channel under a bridge rather than its deck
-export function surface(x, z, baked = false) {
+// up: the ground normal's y where the caller already knows it (the bake does); otherwise worked out here
+export function surface(x, z, baked = false, up) {
   locate(x, z);
   S.panel = false;       // concrete drives like a track but marks like asphalt
   S.mud = 0;             // 0..1: how deep the going is (forest tracks hold water in the shade)
   S.mudV = 0; S.pud = 0; S.rut = 0;   // for the ground shader: mud cover with soft edges, standing water, rut depth
-  const kindCell = cellKind(L.i, L.j);
+  const kindCell = kindHere(cellKind(L.i, L.j), x, z), alp = alpine;
   const edge = Math.min(L.du, L.dv), wob = noise(x * 0.09, z * 0.09);
   const fine = noise(x * 0.62, z * 0.62), big = fbm(x * 0.021 + 9, z * 0.021, 3);
   const dirU = hash2(L.i + 3, L.j + 9) < 0.5, skew = hash2(L.i, L.j) * 0.3 - 0.15;
@@ -475,9 +867,26 @@ export function surface(x, z, baked = false) {
     }
   }
   S.kind = k;
+  // up above the trees: shorter, yellower grass with grey stone showing through
+  if (alp > 0) {
+    blend(150 + big * 30 + fine * 12, 152 + big * 24 + fine * 10, 92 + big * 14, alp * 0.55);
+    const stone = sstep(0.18, 0.4, fbm(x * 0.05 + 3, z * 0.05, 2) + fine * 0.15) * alp;
+    blend(136 + fine * 22, 132 + fine * 20, 124 + fine * 18, stone * 0.85);
+  }
+  // scree: loose grey stone, lighter than the weathered faces it fell from, nothing growing in it
+  if (L.mf > 0) {
+    const sc = screeAt(x, z, up ?? slopeUp(x, z));
+    if (sc > 0) {
+      // stones a hand to a metre across with dark gaps between, the bigger blocks paler (they catch the light)
+      const stones = noise(x * 1.1 + 4, z * 1.1 - 2) + noise(x * 2.3 - 1, z * 2.3 + 5) * 0.4, blocks = noise(x * 0.35 - 7, z * 0.35 + 3);
+      const gap = sstep(-0.08, -0.38, stones), c = 172 + fine * 16 + blocks * 34 + sstep(0.15, 0.4, stones) * 18;
+      blend(c * (1 - gap * 0.5), c * 0.95 * (1 - gap * 0.52), c * 0.87 * (1 - gap * 0.55), Math.min(1, sc * 1.6));
+      if (sc > 0.45) { S.kind = KIND.SCREE; S.crop = 0; S.mu = 0.6; S.rough = 0.075; S.drag = 0.03; }
+    }
+  }
   // grass margin along every field edge
-  if (k !== KIND.FOREST) {
-    const em = 1 - sstep(1.8, 3.4, edge + wob * 1.1);
+  if (k !== KIND.FOREST && L.mf < 1) {
+    const em = (1 - sstep(1.8, 3.4, edge + wob * 1.1)) * (1 - L.mf);
     if (em > 0) {
       blend(108 + big * 40, 142 + big * 28, 62, em);
       if (em > 0.5) { S.kind = KIND.VERGE; S.crop = 1; S.mu = 0.76; S.rough = 0.06; S.drag = 0.008; }
@@ -623,10 +1032,46 @@ export function objects(cx, cz, margin = 0) {
       continue;
     }
     const pd = L.pathD, edge = Math.min(L.du, L.dv), { li, lj, du, dv, along, onU } = L, i = L.i, j = L.j, wide = L.style === 3 ? 4 : 0;
-    const kind = cellKind(i, j), s = 0.82 + hr * 0.5, rot = hr * 6.283;
+    const kind = kindHere(cellKind(i, j), x, z), alp = alpine, s = 0.82 + hr * 0.5, rot = hr * 6.283;
+    // the range: crags stand out of the faces, where no tree can hold; boulders that came down lie in the
+    // scree; now and then a lone block out on the alpine grass. (Clear of the serpentine and its cuttings.)
+    const over = tlOver;
+    if (L.mf > 0.3 && pd > 8) {
+      // by the serpentine the slope comes from the real ground, cuttings and all (the broad land doesn't know them)
+      const up = L.mainD < 40 ? groundUp(x, z) : slopeUp(x, z);
+      // (.5: where the ground shader turns to bare rock; the range is steep, trees and pine hold on below that)
+      if (up < 0.5) { if (L.mainD > 12 && h < 0.13) add(OBJ.CRAG, x, z, 1.3 + hr * hr * 3, rot); continue; }
+      if (L.mainD > 13) {
+        const sc = screeAt(x, z, up);
+        if (sc > 0.45) { if (h < 0.07 * sc) add(OBJ.CRAG, x, z, 0.28 + hr * 0.75, rot); continue; }
+        if (alp > 0.5 && h < 0.003) { add(OBJ.CRAG, x, z, 0.9 + hr * 1.4, rot); continue; }
+        // tors, like Petrovy kameny: a few clusters of bedded rock on the bare tops and the ridge
+        const tor = noise(x * 0.011 + 31, z * 0.011 - 17);
+        if (over > -20 && tor > 0.3) {
+          if (h < 0.35 * sstep(0.3, 0.42, tor)) add(OBJ.CRAG, x, z, (1.2 + hr * 2.4) * (0.6 + sstep(0.3, 0.45, tor) * 0.5), rot);
+          continue;
+        }
+      }
+    }
+    if (alp > 0) {
+      // the dwarf pine belt, clear of the serpentine; just over the line, a last stunted spruce here and there
+      if (L.mainD > 9 && pd > 5) {
+        if (h < 0.62 * pineBelt(x, z, over)) { add(OBJ.PINE, x, z, 0.75 + hr * 0.55, rot); continue; }
+        if (over < 22 && h > 0.985) { add(OBJ.SPRUCE, x, z, 0.3 + hr * 0.22, rot); continue; }
+      }
+      if (h < 0.02 * alp) add(OBJ.ROCK, x, z, s * (0.6 + hr), rot); else if (h < 0.05 && alp < 0.6) add(OBJ.BUSH, x, z, s * 0.7, rot); continue; }
     if (kind === KIND.FOREST) {
       if (pd < 4.6 + wide) continue;
-      if (edge < 7 && h < 0.42) { add(OBJ.BUSH, x, z, s, rot); continue; }
+      if (edge < 7 && h < 0.42 && L.mf < 0.5) { add(OBJ.BUSH, x, z, s, rot); continue; }
+      // toward the tree line the spruce forest opens up and the trees get shorter; dwarf pine fills the gaps
+      if (over > -100) {
+        if (L.mainD < 9) continue;
+        const k = sstep(-100, -5, over);
+        if (h < 0.55 * pineBelt(x, z, over)) { add(OBJ.PINE, x, z, 0.75 + hr * 0.5, rot); continue; }
+        if (h > 0.82 - 0.62 * k) { if (hr < 0.2 * (1 - k)) add(OBJ.BUSH, x, z, 0.6 + hr, rot); continue; }
+        add(OBJ.SPRUCE, x, z, s * (1 - 0.5 * k) * (0.85 + 0.3 * h), rot);
+        continue;
+      }
       const ft = forestType(x, z);
       const clear = forestClearing(x, z);
       // gaps between the trees fill with young growth, more of it where light gets down; a birch grove stands thinner
@@ -698,7 +1143,7 @@ const POLE_GAP = 44, POLE_OFF = 7.3;
 // a pole can't stand on the road it would meet at a junction
 const poleOk = p => {
   locate(p[0], p[1]);
-  if (L.mainD <= 6.6) return false;
+  if (L.mainD <= 6.6 || L.mf > 0) return false;
   scan(p[0], p[1]);
   return (!R.on || R.d - R.w > 6) && (!C.on || C.d - C.w > 6);
 };

@@ -33,7 +33,8 @@ const SPOKES = [5, 6, 8, 10];
 function defaults(spec) {
   return {
     paint: spec.paint, finish: 'gloss', livery: 'none', paint2: spec.stripe ?? 0xf0f1ee, num: false, numVal: 7,
-    rim: spec.wheel.rim, spokes: spec.wheel.spokes, glass: 'clear', roofBar: spec.id === 'pickup' || spec.id === 'rally', plate: spec.plate,
+    rim: spec.wheel.rim, spokes: spec.wheel.spokes, glass: 'clear', roofBar: spec.id === 'pickup' || spec.id === 'rally' || spec.id === 'buggy', plate: spec.plate,
+    susp: 0.5,
   };
 }
 export const tuneOf = spec => ({ ...defaults(spec), ...store[spec.id] });
@@ -41,8 +42,17 @@ export const tuneOf = spec => ({ ...defaults(spec), ...store[spec.id] });
 // the spec sheet with this car's build laid over it (only what needs a rebuild lives here)
 export function tunedSpec(spec) {
   const t = tuneOf(spec);
-  return { ...spec, plate: t.plate, roofBar: t.roofBar, wheel: { ...spec.wheel, rim: t.rim, spokes: t.spokes } };
+  return { ...spec, plate: t.plate, roofBar: t.roofBar, wheel: { ...spec.wheel, rim: t.rim, spokes: t.spokes }, phys: suspended(spec.phys, t.susp) };
 }
+
+// Suspension 0..1 around the car's own setup (0.5 = as it was tuned): soft is weaker springs, much
+// weaker dampers and a little more travel, so it bobs and wallows; stiff is the other way round.
+export function suspended(p, s = 0.5) {
+  const f = Math.max(0, Math.min(1, s)) - 0.5;
+  if (Math.abs(f) < 1e-3) return p;
+  return { ...p, k: p.k * 2 ** (f * 1.6), c: p.c * 2 ** (f * 2.2), travel: p.travel * 2 ** (-f * 0.5) };
+}
+const SUSP_WORD = s => s < 0.15 ? 'Hodně měkké' : s < 0.4 ? 'Měkké' : s <= 0.6 ? 'Původní' : s < 0.85 ? 'Tvrdé' : 'Hodně tvrdé';
 
 const numTex = {};
 function numberTexture(n) {
@@ -107,6 +117,9 @@ const CSS = `
 #tune input[type=text], #tune input[type=number] { background:#f4f5f0; color:#16181c; border:0; font:700 20px/1 Arial,sans-serif; padding:6px 10px; width:150px; text-transform:uppercase; letter-spacing:.04em; }
 #tune input[type=number] { width:76px; }
 #tune .row { display:flex; gap:8px; align-items:center; }
+#tune .susp { display:flex; gap:10px; align-items:center; font-size:13px; color:var(--dim); }
+#tune .susp input { flex:1; accent-color:var(--gold); }
+#tune .suspv { margin-top:4px; font-size:13px; color:var(--dim); } #tune .suspv b { color:var(--gold); }
 #tune footer { display:flex; gap:8px; padding:10px 14px 14px; }
 #tune footer button { flex:1; background:rgba(255,247,232,.06); color:var(--ink); border:1px solid var(--line); font:600 15px/1 'Barlow',sans-serif; padding:10px; cursor:pointer; }
 #tune footer .done { background:var(--gold); color:#241607; border:0; font:700 19px/1 'Barlow Condensed',sans-serif; letter-spacing:.05em; }
@@ -151,7 +164,10 @@ export function initTuning({ getCar, rebuild, lite }) {
           <input type="number" min="0" max="99" value="${t.numVal}" data-in="numVal" ${t.num ? '' : 'disabled style="opacity:.4"'}></div>
         <h4>Disky</h4>${swatches(RIMS, t.rim, 'rim')}
         <div class="seg" style="margin-top:6px">${SPOKES.map(n => `<button data-k="spokes" data-s="${n}" class="${n === t.spokes ? 'on' : ''}">${n} paprsků</button>`).join('')}</div>
-        <h4>Skla</h4>${seg(Object.fromEntries(Object.entries(GLASS).map(([k, v]) => [k, { name: v[0] }])), t.glass, 'glass')}
+        <h4>Perování</h4>
+        <div class="susp"><span>Měkké</span><input type="range" min="0" max="1" step="0.05" value="${t.susp}" data-in="susp"><span>Tvrdé</span></div>
+        <div class="suspv">${t.susp.toFixed(2)} · <b>${SUSP_WORD(t.susp)}</b></div>
+        ${s.open ? '' : `<h4>Skla</h4>${seg(Object.fromEntries(Object.entries(GLASS).map(([k, v]) => [k, { name: v[0] }])), t.glass, 'glass')}`}
         <h4>Rampa světel na střeše</h4><div class="seg"><button data-k="roofBar" data-s="0" class="${t.roofBar ? '' : 'on'}">Bez rampy</button><button data-k="roofBar" data-s="1" class="${t.roofBar ? 'on' : ''}">S rampou</button></div>
         <h4>SPZ</h4><input type="text" maxlength="8" value="${t.plate}" data-in="plate" spellcheck="false">
       </div>
@@ -173,11 +189,13 @@ export function initTuning({ getCar, rebuild, lite }) {
   // colour pickers: live while dragging, without redrawing the panel under the pointer
   el.addEventListener('input', e => {
     const i = e.target;
+    if (i.dataset.in === 'susp') { el.querySelector('.suspv').innerHTML = `${(+i.value).toFixed(2)} · <b>${SUSP_WORD(+i.value)}</b>`; return; }
     if (i.type === 'color') { store[spec().id] = { ...cur(), [i.dataset.k]: parseInt(i.value.slice(1), 16) }; save(); dress(getCar(), cur(), lite()); }
   });
   el.addEventListener('change', e => {
     const i = e.target;
     if (i.type === 'color') render();
+    else if (i.dataset.in === 'susp') set({ susp: Math.round(+i.value * 20) / 20 }, true);
     else if (i.dataset.in === 'numVal') set({ numVal: Math.max(0, Math.min(99, Math.round(+i.value) || 0)) });
     else if (i.dataset.in === 'plate') { const v = i.value.toUpperCase().replace(/[^A-Z0-9 ]/g, '').trim().slice(0, 8); set({ plate: v || spec().plate }, true); }
   });

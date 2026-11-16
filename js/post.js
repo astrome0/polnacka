@@ -227,9 +227,33 @@ export class ScenePass extends Pass {
   setQuality(q) {
     this.q = q;
     if ((q.aoN || 9) !== this.aoN) { this.aoM.dispose(); this.aoM = material(aoFrag(q.aoN || 9), { ...this.U }); this.aoN = q.aoN || 9; }
-    if (this.rt.samples !== q.samples) { this.rt.samples = q.samples; this.rt.dispose(); }
+    this.fails = 0;
+    if (this.rt.samples !== q.samples) { this.rt.samples = q.samples; this.rt.dispose(); this.check = 2; }
+  }
+  // The scene target can come out broken ("attachments are not all the same size"): seen after the
+  // resolution changed by itself on the integrated GPU, at High/Ultra. Then the scene is black and only
+  // the clouds are composited on top. Checked now and then; a broken target is built again from scratch,
+  // and if that keeps happening, multisampling goes (it is the part that needs the most memory).
+  healthy(renderer) {
+    const gl = renderer.getContext(), fb = renderer.properties.get(this.rt).__webglFramebuffer;
+    if (!fb || Array.isArray(fb)) return true;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    renderer.setRenderTarget(null);
+    return ok;
+  }
+  rebuild() {
+    this.fails = (this.fails || 0) + 1;
+    if (this.fails >= 3 && this.rt.samples > 0) { this.rt.samples = 0; console.warn('Polňačka: scene target keeps breaking, multisampling off'); }
+    const old = this.rt.depthTexture;
+    this.rt.dispose(); old.dispose();
+    this.rt.depthTexture = new THREE.DepthTexture(this.rt.width, this.rt.height, THREE.UnsignedIntType);
+    this.U.tDepth.value = this.fx.mat.uniforms.uDepth.value = this.rt.depthTexture;
   }
   setSize(w, h) {
+    // whole pixels: the dynamic resolution hands over sizes like 1183.2 x 887.4
+    w = Math.max(1, Math.round(w)); h = Math.max(1, Math.round(h));
+    if (w !== this.rt.width || h !== this.rt.height) this.check = 2;
     this.rt.setSize(w, h);
     const hw = Math.max(1, w >> 1), hh = Math.max(1, h >> 1);
     this.aoRT.setSize(hw, hh); this.ao2RT.setSize(hw, hh); this.shaftRT.setSize(Math.max(1, w >> 2), Math.max(1, h >> 2));
@@ -265,6 +289,10 @@ export class ScenePass extends Pass {
     // once a draw failed half way (it happened on an iPhone) a saved mask was the broken one, and from then
     // on the camera saw only particles: no ground, no car, just the clouds and the haze over everything.
     const mask = MAIN_LAYERS;
+    if (this.check > 0 || this.frame % 60 === 0) {
+      if (this.check > 0) this.check--;
+      if (!this.healthy(renderer)) this.rebuild();
+    }
     camera.layers.disable(2);            // particles come after, with the depth buffer in hand
     try { renderer.setRenderTarget(this.rt); renderer.clear(); renderer.render(scene, camera); }
     finally { camera.layers.mask = mask; }

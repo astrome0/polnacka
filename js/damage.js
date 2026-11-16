@@ -16,6 +16,8 @@ export class Damage {
     this.lightsBroken = [false, false];
     this.events = [];
     this.lastByZone = new Map();
+    // an open car (the buggy) has no glass to crack and no airbag
+    if (!car.panes.glassF) this.glassGone = true;
   }
   // p: impact point relative to the centre of mass, car axes. dir: push direction, car axes.
   impact(p, dir, speed, worldP, kind) {
@@ -46,6 +48,7 @@ export class Damage {
     this.events.push({ sev });
   }
   fireAirbag() {
+    if (this.car.spec.open) return;
     this.bagT = 0; this.audio?.pop();
     const b = this.car.cab.bag; b.visible = true; b.scale.setScalar(0.001);
     b.getWorldPosition(v);
@@ -154,6 +157,7 @@ export class Damage {
     if (veh.engineHP <= 0) veh.dead = true;
   }
   crackGlass(hit, sev) {
+    if (this.glassGone) return;
     const c = this.car.cab, x = c.crackCtx, W = c.crackCv.width, H = c.crackCv.height;
     this.glassHP -= sev * 2.4;
     const sx = W * (0.5 - clamp(hit.x / 1.8, -0.5, 0.5)) * 0.8 + W * 0.1 + (Math.random() - 0.5) * 200, sy = hit.z > 0 ? H * (0.2 + Math.random() * 0.7) : H * (0.5 + Math.random() * 0.4);
@@ -204,7 +208,7 @@ export class Damage {
   }
   // how much of the outside reaches the driver's ears
   updateOpen() {
-    let o = 0;
+    let o = this.car.spec.open ? 1 : 0;
     for (const n in this.car.panes) if (this.car.panes[n].off) o += n === 'glassF' ? 0.6 : 0.3;
     for (const n of ['doorL', 'doorR']) if (this.car.parts[n]?.off) o += 0.35;
     this.audio?.setOpen(o);

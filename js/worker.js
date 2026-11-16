@@ -1,7 +1,7 @@
 // Bakes chunks off the main thread: heights, normals, albedo, crop tufts, scattered objects.
 import { CHUNK, KIND, OBJ, SUN_AZ, height, heightMesh, surface, objects, hash2, noise, roadAt, waterAt, bridges, forestType, forestClearing, trackDist, FOREST } from './world.js';
 
-const SHADE = { [OBJ.BEECH]: [7, 0.45], [OBJ.SPRUCE]: [4.5, 0.42], [OBJ.BIRCH]: [3.8, 0.28], [OBJ.OAK]: [9, 0.5], [OBJ.BUSH]: [3, 0.34], [OBJ.BARN]: [7, 0.4], [OBJ.HOUSE]: [6.5, 0.4], [OBJ.CHURCH]: [10, 0.4] };
+const SHADE = { [OBJ.BEECH]: [7, 0.45], [OBJ.SPRUCE]: [4.5, 0.42], [OBJ.BIRCH]: [3.8, 0.28], [OBJ.OAK]: [9, 0.5], [OBJ.BUSH]: [3, 0.34], [OBJ.BARN]: [7, 0.4], [OBJ.HOUSE]: [6.5, 0.4], [OBJ.CHURCH]: [10, 0.4], [OBJ.CRAG]: [1.3, 0.38], [OBJ.PINE]: [2.4, 0.4] };
 // tuft placement per surface: [atlas cell, height, width, chance]
 const TUFT = {
   [KIND.WHEAT]: [0, 0.98, 1.05, 1], [KIND.RAPE]: [1, 1.2, 1.15, 1], [KIND.GREEN]: [2, 0.42, 0.95, 1],
@@ -118,8 +118,14 @@ function bake(cx, cz, near, lite) {
   const mudT = near ? new Uint8Array(texN * texN * 4) : null;
   let anyMud = false;
   const d = CHUNK / texN;
+  // the slope as the mesh has it (scree lies on it), from the heights already sampled
+  const upAt = (px, pz) => {
+    const a = Math.min(gridN, Math.round(px / cell)) + 1, b = Math.min(gridN, Math.round(pz / cell)) + 1;
+    const dx = h[b * W + a + 1] - h[b * W + a - 1], dz = h[(b + 1) * W + a] - h[(b - 1) * W + a];
+    return 2 * cell / Math.sqrt(dx * dx + dz * dz + 4 * cell * cell);
+  };
   for (let j = 0; j < texN; j++) for (let i = 0; i < texN; i++) {
-    const s = surface(ox + (i + 0.5) * d, oz + (j + 0.5) * d, true), p = j * texN + i;
+    const s = surface(ox + (i + 0.5) * d, oz + (j + 0.5) * d, true, upAt((i + 0.5) * d, (j + 0.5) * d)), p = j * texN + i;
     if (mudT && s.mudV > 0.01) { anyMud = true; mudT[p * 4] = s.mudV * 255; mudT[p * 4 + 1] = s.pud * 255; mudT[p * 4 + 2] = s.rut * 255; }
     tex[p * 4] = Math.min(255, s.r); tex[p * 4 + 1] = Math.min(255, s.g); tex[p * 4 + 2] = Math.min(255, s.b); tex[p * 4 + 3] = 0;
     kinds[p] = s.panel && s.kind === KIND.PATH ? KIND.PANEL : s.kind; crops[p] = s.crop > 0.5 ? 1 : 0;

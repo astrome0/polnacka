@@ -80,7 +80,12 @@ export function patchFog() {
   // sun-aware fog: toward the sun the haze takes the sun's colour, matching the sky's horizon
   THREE.ShaderChunk.fog_fragment = /* glsl */`
 #ifdef USE_FOG
-  float fogAmt = haze(vFogDepth, fogNear, fogFar);
+  #if defined(LAMBERT) || defined(STANDARD) || defined(PHONG)
+    // (the world spot from the view-space one: the camera's rotation undone)
+    float fogAmt = hazeAt(vFogDepth, fogNear, fogFar, cameraPosition.xz + (transpose(mat3(viewMatrix)) * -vViewPosition).xz);
+  #else
+    float fogAmt = haze(vFogDepth, fogNear, fogFar);
+  #endif
   vec3 fogC = fogColor;
   #if defined(LAMBERT) || defined(STANDARD)
     #if NUM_DIR_LIGHTS > 0

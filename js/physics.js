@@ -35,7 +35,8 @@ export class Vehicle {
       wl: -1e9, wd: 0, cx: 0, cz: 0,   // water level over this corner, depth at the tyre, current
     }));
     this.wet = 0; this.flood = 0;
-    const hw = spec.stations[4].w, S = spec.stations, zF = S[S.length - 1].z, zR = S[0].z;
+    // (hullZ: a truck lofts only its cab, but the load behind it collides too)
+    const hw = spec.hw ?? spec.stations[4].w, S = spec.stations, zF = spec.hullZ?.[1] ?? S[S.length - 1].z, zR = spec.hullZ?.[0] ?? S[0].z;
     const top = S[4].top + lift, low = S[4].low + lift, c = p.comY;
     this.half = { x: hw, z: Math.max(zF, -zR), zF, zR, yLow: low - c, yTop: top - c };
     this.hull = [

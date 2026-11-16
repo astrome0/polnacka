@@ -6,7 +6,7 @@ const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const EYE = 1.66, R = 0.3, WALK = 2.4, RUN = 6;
 // where the feet float when the water is deeper than this: head and shoulders out
 const SWIM = 1.32;
-const STEP_SOUND = { [KIND.PATH]: [2100, 'bandpass', 0.2], [KIND.ROAD]: [900, 'bandpass', 0.11], [KIND.PANEL]: [900, 'bandpass', 0.11], [KIND.PLOUGH]: [240, 'lowpass', 0.3], [KIND.FOREST]: [520, 'lowpass', 0.22] };
+const STEP_SOUND = { [KIND.PATH]: [2100, 'bandpass', 0.2], [KIND.ROAD]: [900, 'bandpass', 0.11], [KIND.PANEL]: [900, 'bandpass', 0.11], [KIND.PLOUGH]: [240, 'lowpass', 0.3], [KIND.FOREST]: [520, 'lowpass', 0.22], [KIND.SCREE]: [1600, 'bandpass', 0.26] };
 const tv = new THREE.Vector3(), tq = new THREE.Quaternion(), IDENT = new THREE.Quaternion(), vw = { x: 0, y: 0, z: 0, core: 0 };
 
 // The driver out of the car: a capsule that walks over the same ground the wheels read.

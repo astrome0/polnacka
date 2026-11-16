@@ -7,6 +7,7 @@ const ENGINES = {
   rally: { cyl: 4, rough: 0.2, formant: 880, q: 1.6, drive: 3.4, turbo: 0.03, crackle: true, gain: 1 },
   pickup: { cyl: 6, rough: 0.34, formant: 400, q: 1.1, drive: 2.2, turbo: 0.012, crackle: false, gain: 1.05 },
   monster: { cyl: 8, rough: 0.72, formant: 260, q: 1, drive: 5, turbo: 0, crackle: false, gain: 1.25 },
+  buggy: { cyl: 4, rough: 0.5, formant: 560, q: 1.2, drive: 4.2, turbo: 0, crackle: true, gain: 1.1 },   // air-cooled flat four, no silencer to speak of
   sport: { cyl: 10, rough: 0.12, formant: 1500, q: 2, drive: 2.6, turbo: 0, crackle: true, gain: 0.95 },
 };
 

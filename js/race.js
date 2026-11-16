@@ -2,8 +2,9 @@
 // on the same physics as the player. No rails: a bot steers, brakes and gets stuck like anyone else.
 import * as THREE from 'three';
 import { CARS } from './cars.js';
+import { Driver, makeLook } from './people.js';
 import { Vehicle } from './physics.js';
-import { grid, cellAt, surface, height, waterAt, inVillage, KIND, OBJ } from './world.js';
+import { grid, cellAt, surface, height, waterAt, inVillage, mountainAt, KIND, OBJ } from './world.js';
 
 const { lineU, lineV, pathU, pathV, cellKind, point } = grid;
 const STEP = 6, GATE_GAP = 180, GRID_S = 40;
@@ -112,6 +113,7 @@ function drivable(pts, type) {
     const w = waterAt(p.x, p.z);
     if (w.on && w.edge < 0) { const lvl = w.lvl; if (lvl - height(p.x, p.z) > 0.55) return false; }
     if (type === 'field' && inVillage(p.x, p.z)) return false;
+    if (mountainAt(p.x, p.z) > 0) return false;     // no tracks up there
   }
   return true;
 }
@@ -160,12 +162,18 @@ function finishTrack(pts, type) {
 }
 
 // ---- rivals ---------------------------------------------------------------------------------
+const tmpLook = new THREE.Vector3();
 class Bot {
   constructor(race, spec, def, color, name, pace, slot) {
     this.race = race; this.spec = spec; this.name = name; this.pace = pace; this.kind = 'bot';
     const { g } = race.traffic.model(def, color);
     race.scene.add(g);
     this.g = g;
+    // the rival at the wheel: same face every race (seeded by name); Zdena keeps her long hair
+    const seed = [...name].reduce((a, c) => a * 31 + c.charCodeAt(0) | 0, 7), look = makeLook(seed);
+    if (/ová$/.test(name)) Object.assign(look, { beard: 'none', style: ['long', 'ponytail', 'bob'][Math.abs(seed) % 3] });
+    else if (['long', 'ponytail', 'bob'].includes(look.style)) look.style = 'short';
+    this.driver = new Driver(look, def.seat); g.add(this.driver.group);
     const v = this.veh = new Vehicle(spec);
     this.pos = v.pos; this.vel = v.v; this.hw = spec.stations[4].w; this.hl = v.half.z; this.mass = v.mass; this.heading = 0;
     const t = race.track;
@@ -268,6 +276,8 @@ class Bot {
     this.scanT -= dt;
     if (this.scanT <= 0) { this.scanT = 0.25; v.solids = r.terrain.nearby(v.pos.x, v.pos.z, 28, v.solids); }
     const d = r.playerPos ? v.pos.distanceTo(r.playerPos) : 0, speed = v.v.length();
+    this.driver.group.visible = d < 140;
+    if (d < 70) this.driver.update(dt, -v.steer * 7.5, d < 16 ? this.g.worldToLocal(tmpLook.copy(r.playerPos)) : null);
     if (d > 240) return;
     // what the tyres throw up, close enough to see
     this.stampT -= dt;
@@ -373,7 +383,7 @@ export class Race {
     T.gates.forEach((g, i) => add(g.x, g.z, g.tx, g.tz, g.w, i === T.gates.length - 1 ? this.finishM : this.bannerM));
   }
   stop() {
-    for (const b of this.bots) this.scene.remove(b.g);
+    for (const b of this.bots) { b.driver.dispose(); this.scene.remove(b.g); }
     for (const g of this.parts) { this.scene.remove(g); g.traverse(o => { if (o.geometry && o.geometry !== this.poleG) o.geometry.dispose(); }); }
     this.bots = []; this.parts = []; this.active = false; this.state = 'off'; this.hold = false; this.traffic.others = null; this.beam.visible = false;
     $('race').classList.remove('on'); $('rEnd').classList.remove('on'); $('rBig').classList.remove('on');

@@ -17,13 +17,15 @@ import { Damage } from './damage.js';
 import { FX } from './fx.js';
 import { Audio } from './audio.js';
 import { Traffic } from './traffic.js';
+import { Reactions } from './angry.js';
+import { Range } from './range.js';
 import { Race } from './race.js';
 import { ScenePass } from './post.js';
 import { Walker } from './walk.js';
 import { Rain } from './rain.js';
 import { Drone } from './drone.js';
 import { Deck, DroneHud } from './deck.js';
-import { height, ground, surface, isForest, waterAt, KIND, OBJ, CHUNK } from './world.js';
+import { height, ground, surface, isForest, waterAt, serpentine, KIND, OBJ, CHUNK } from './world.js';
 
 const $ = id => document.getElementById(id);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -63,7 +65,7 @@ renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.06, 2600);
+const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.06, 12000);   // (far: the mountain range, range.js)
 scene.add(camera);
 camera.layers.enable(1);   // layer 1 holds what the mirror leaves out
 camera.layers.enable(2);   // layer 2 is particles, drawn after the rest (post.js)
@@ -109,7 +111,25 @@ rain.useDepth(fx.mat.uniforms); hail.useDepth(fx.mat.uniforms);
 fx.field = (x, y, z, o) => tornadoes.windAt(x, y, z, o);
 const debris = new Debris(scene);
 const audio = new Audio();
+const range = new Range(scene);
+range.update(Q.far * CHUNK);
+setTimeout(() => range.build(), 1200);
 const traffic = new Traffic(scene, fx, audio, terrain, env, Q);
+traffic.cam = camera;   // (npc drivers that gave up are re-placed only where you can't see)
+// after a crash the other driver deals with you by temper (angry.js): these are the bits that touch you
+traffic.react = new Reactions(traffic, scene, {
+  player: () => ({ pos: G.onFoot ? walker.pos : G.veh.pos, inCar: !G.onFoot, veh: G.veh, eyeX: G.car.cab.eye.x, eyeZ: G.car.cab.eye.z, speed: G.onFoot ? Math.hypot(walker.v.x, walker.v.z) : Math.abs(G.veh.forwardSpeed) }),
+  // a fist on your door: the view jumps, a thud, a small dent where it landed
+  bang: p => {
+    const v = G.veh, local = tmpV.copy(p).sub(v.pos).applyQuaternion(tmpQ.copy(v.q).conjugate());
+    G.dmg.impact(local.clone(), new THREE.Vector3(-Math.sign(local.x) || -1, 0, 0), 4.5, p, 'solid');
+    G.dmg.shake = Math.min(1.2, G.dmg.shake + 0.4); audio.thud(0.4);
+  },
+  dragOut: () => { if (!G.onFoot) { getOut(true); toast('Vytáhl tě z auta!'); } },
+  // a slap shoves you; the third one has you seeing stars for a moment
+  slap: (dir, hard) => { walker.v.x += dir.x * 3.5; walker.v.z += dir.z * 3.5; walker.v.y += 1.4; walker.onGround = false; audio.thud(0.5); if (hard) G.knock = 1.8; },
+  say: t => toast(t),
+});
 traffic.onCrash = (m, speed) => {
   G.crashes++;
   toast(m.kind === 'tractor' ? 'Traktorista si tě zapamatoval' : ['Tohle pojišťovna nezaplatí', 'Přednost zprava to nebyla', 'Řidič vystoupil a kouká', 'Bonus za bezeškodní jízdu je pryč'][Math.random() * 4 | 0]);
@@ -232,7 +252,7 @@ function spawnCar(idx, x, z, heading) {
   veh.onScrape = (x, y, z, sp) => { if (Math.random() < 0.3) fx.sparks({ x, y, z }, 1.5); };
   updateCabinView();
   if (mirrorMat) car.cab.mirrorPlane.material = mirrorMat;
-  audio.setCar(spec.id); audio.setOpen(0);
+  audio.setCar(spec.id); audio.setOpen(spec.open ? 1 : 0);
   syncRoot();
   return car;
 }
@@ -336,8 +356,9 @@ const CAMS = ['Kokpit', 'Kapota', 'Za autem', 'Daleko'];
 
 function updateCabinView() {
   if (!G.car) return;
-  const inCab = G.cam === 0 && !G.onFoot && !drone.view;
+  const inCab = G.cam === 0 && !G.onFoot && !drone.view && G.mode !== 'menu' && G.mode !== 'load';
   for (const m of G.car.cab.driver) m.visible = !G.onFoot;
+  for (const m of G.car.cab.outside) m.visible = !inCab && !G.onFoot;
   G.car.glass.opacity = inCab ? 0.05 : 0.56;
   G.car.glass.envMapIntensity = inCab ? 0.5 : 1.5;
   if (!drone.view) { camera.fov = inCab ? 74 : 66; camera.near = inCab ? 0.06 : 0.2; camera.updateProjectionMatrix(); }
@@ -445,6 +466,7 @@ function syncRoot() {
     vis.steer.rotation.y = w.front ? v.steer + w.bent : w.bent;
     vis.spinner.rotation.x = w.spin;
   });
+  c.updateLinks?.();
   const ax = c.root.userData.axles;
   if (ax) {
     ax.f.position.y = (v.wheels[0].m.y + s.phys.comY - (v.wheels[0].vis + v.wheels[1].vis) / 2);
@@ -478,7 +500,7 @@ const tmpQuatUp = new THREE.Vector3(0, 1, 0), tmpV3 = new THREE.Vector3();
 
 // ---- per-frame feel: crops, dust, sound ---------------------------------------------------------
 let ttl = 0, statT = 0, sunT = 0, sunGoal = 1;
-const DUST = { [KIND.PATH]: [0.62, 0.56, 0.45], [KIND.PLOUGH]: [0.32, 0.24, 0.17], [KIND.WHEAT]: [0.7, 0.58, 0.32], [KIND.STUBBLE]: [0.72, 0.62, 0.42], [KIND.RAPE]: [0.5, 0.5, 0.2], [KIND.GREEN]: [0.38, 0.42, 0.22], [KIND.MEADOW]: [0.34, 0.38, 0.2], [KIND.VERGE]: [0.34, 0.38, 0.2], [KIND.FOREST]: [0.26, 0.2, 0.13] };
+const DUST = { [KIND.PATH]: [0.62, 0.56, 0.45], [KIND.PLOUGH]: [0.32, 0.24, 0.17], [KIND.WHEAT]: [0.7, 0.58, 0.32], [KIND.STUBBLE]: [0.72, 0.62, 0.42], [KIND.RAPE]: [0.5, 0.5, 0.2], [KIND.GREEN]: [0.38, 0.42, 0.22], [KIND.MEADOW]: [0.34, 0.38, 0.2], [KIND.VERGE]: [0.34, 0.38, 0.2], [KIND.FOREST]: [0.26, 0.2, 0.13], [KIND.SCREE]: [0.55, 0.54, 0.5] };
 const CHAFF = { [KIND.WHEAT]: [0.85, 0.68, 0.3], [KIND.RAPE]: [0.9, 0.82, 0.15], [KIND.GREEN]: [0.24, 0.44, 0.12], [KIND.MEADOW]: [0.3, 0.44, 0.16], [KIND.VERGE]: [0.3, 0.44, 0.16], [KIND.STUBBLE]: [0.74, 0.62, 0.36], [KIND.FOREST]: [0.2, 0.3, 0.12] };
 const stampAcc = { t: 0 };
 function feelFrame(dt) {
@@ -552,12 +574,13 @@ function feelFrame(dt) {
     const hw = v.half.x * 0.86, fw = tmpV.set(0, 0, v.half.zF * 0.8).applyQuaternion(v.q), rt = tmpV2.set(1, 0, 0).applyQuaternion(v.q);
     for (let i = -2; i <= 2; i++) addCrop(terrain.stamp(v.pos.x + fw.x + rt.x * hw * i / 2, v.pos.z + fw.z + rt.z * hw * i / 2, 0.75, 190));
   }
-  // bushes shred
+  // bushes shred; dwarf pine is a mat of tough springy stems, it holds a car back far harder
   if (speed > 3) for (const b of terrain.bushesNear(v.pos.x, v.pos.z, 3.2)) {
     if (b.hit && performance.now() - b.hit < 700) continue;
     b.hit = performance.now();
-    fx.leaves({ x: b.x, y: b.y, z: b.z }, 42);
-    v.v.multiplyScalar(0.93);
+    const pine = b.type === OBJ.PINE;
+    fx.leaves({ x: b.x, y: b.y + (pine ? 0.8 : 0), z: b.z }, pine ? 30 : 42, pine ? [0.07, 0.15, 0.08] : undefined);
+    v.v.multiplyScalar(pine ? 0.8 : 0.93);
     audio.burst?.(0.3, 2600, 'highpass', 0.16);
   }
   // exhausts and engine smoke
@@ -565,10 +588,10 @@ function feelFrame(dt) {
   const engineP = tmpV.set(0, c.spec.stations[6].top - 0.1 + (c.spec.lift || 0) - c.spec.phys.comY, c.spec.axle.f + 0.2).applyQuaternion(v.q).add(v.pos);
   if (dmg.smoke >= 1 && Math.random() < dt * (dmg.smoke * 30)) fx.smoke(engineP.x, engineP.y, engineP.z, v.v.x, v.v.z, dmg.smoke >= 2, dmg.smoke >= 3);
   if (v.input.nitro && v.nitroFuel > 0) {
-    const ex = tmpV2.set(0.42, c.spec.stations[0].low + 0.03 + (c.spec.lift || 0) - c.spec.phys.comY, c.spec.stations[0].z - 0.1).applyQuaternion(v.q).add(v.pos);
+    const ex = tmpV2.set(c.spec.exhaust ? c.spec.exhaust.x[0] : 0.42, (c.spec.exhaust ? c.spec.exhaust.y : c.spec.stations[0].low + 0.03) + (c.spec.lift || 0) - c.spec.phys.comY, c.spec.stations[0].z - 0.1).applyQuaternion(v.q).add(v.pos);
     fx.flame(ex.x, ex.y, ex.z, -v.v.x * -0.7, -v.v.z * -0.7);
   }
-  if (!G.onFoot && Math.random() < dt * 8) { const ex = tmpV2.set(0.42, c.spec.stations[0].low + (c.spec.lift || 0) - c.spec.phys.comY, c.spec.stations[0].z).applyQuaternion(v.q).add(v.pos); fx.exhaust(ex.x, ex.y, ex.z, v.v.x, v.v.z); }
+  if (!G.onFoot && Math.random() < dt * 8) { const ex = tmpV2.set(c.spec.exhaust ? c.spec.exhaust.x[0] : 0.42, (c.spec.exhaust ? c.spec.exhaust.y + 0.12 : c.spec.stations[0].low) + (c.spec.lift || 0) - c.spec.phys.comY, c.spec.stations[0].z - (c.spec.exhaust ? 0.15 : 0)).applyQuaternion(v.q).add(v.pos); fx.exhaust(ex.x, ex.y, ex.z, v.v.x, v.v.z); }
 
   audio.engine(v.dead || G.onFoot || drone.view ? 0.1 : v.rpm, v.p.redline, v.dead ? 0 : v.input.throttle, v.gear);
   audio.ride(speed, gravelAmt / 2, Math.max(0, skid), Math.min(1, cropAmt), v.air > 0.1, onAsphalt);
@@ -645,9 +668,19 @@ function waterFrame(dt, wading, speed) {
 // ---- out of the car --------------------------------------------------------------------------
 const walker = new Walker(), footSolids = [], footIn = { fwd: 0, side: 0, run: false, jump: false };
 let footStampT = 0;
-function getOut() {
+// the car to the road at the foot of the range, facing up it (key 0)
+function toMountains() {
+  const R = serpentine();
+  if (!R.n || !G.veh) return;
+  if (G.onFoot) getIn(true);
+  const x = R.xs[3], z = R.zs[3], heading = Math.atan2(R.xs[6] - x, R.zs[6] - z);
+  G.veh.place(x, height(x, z) + G.veh.spec.phys.comY + 0.1, z, heading);
+  terrain.update(x, z, true);
+  toast('Pod horami');
+}
+function getOut(force) {
   const v = G.veh;
-  if (v.v.length() > 4) { toast('Nejdřív zastav'); return; }
+  if (!force && v.v.length() > 4) { toast('Nejdřív zastav'); return; }
   camera.getWorldDirection(tmpV);
   walker.yaw = Math.atan2(-tmpV.x, -tmpV.z); walker.pitch = 0;
   walker.place(v, G.car.cab.eye.x, terrain.nearby(v.pos.x, v.pos.z, 6, footSolids));
@@ -699,7 +732,14 @@ function saveStats() {
   try { localStorage.setItem(STATS, s); } catch {}
 }
 try { const s = JSON.parse(localStorage.getItem(STATS)); if (s) { G.crop = s.crop || 0; G.felled = s.felled || 0; G.crashes = s.crashes || 0; } } catch {}
-function toast(t) { $('toast').textContent = t; $('toast').classList.add('on'); ttl = 2.4; }
+// (debug, key 9) where am I: for reporting a broken spot; also copied to the clipboard
+function showPos(e) {
+  if (e.code !== 'Digit9' && e.code !== 'Numpad9') return;
+  const p = focus(), t = `x ${p.x.toFixed(0)}  z ${p.z.toFixed(0)}`;
+  toast(t, 6); console.log('[pozice]', t);
+  navigator.clipboard?.writeText(t).catch(() => {});
+}
+function toast(t, secs = 2.4) { $('toast').textContent = t; $('toast').classList.add('on'); ttl = secs; }
 
 // ---- input --------------------------------------------------------------------------------
 addEventListener('keydown', e => {
@@ -731,6 +771,8 @@ addEventListener('keydown', e => {
     if (e.code === 'Escape') toMenu();
     return;
   }
+  if ((e.code === 'KeyH' && e.shiftKey) || e.code === 'Digit0' || e.code === 'Numpad0') toMountains();
+  showPos(e);
   if (e.code === 'KeyF') { if (G.onFoot) getIn(); else getOut(); }
   if (e.code === 'KeyB' && G.onFoot) G.binoOn = !G.binoOn;
   if (e.code === 'KeyP') cycleWeather();
@@ -838,7 +880,7 @@ function setQuality(n) {
   scenePass.setQuality(Q); clouds.setQuality(Q); torView.setQuality(Q);
   bloom.enabled = Q.bloom; fxaa.enabled = Q.samples === 0;
   sky.setShadow(shadowSize(), Q.span);
-  sky.setEdge(Q.far * CHUNK);
+  sky.setEdge(Q.far * CHUNK); range.update(Q.far * CHUNK);
   rain.setCount(Q.rain); hail.setCount(Q.rain >> 2);
   terrain.setQuality(Q);
   setupMirror();
@@ -1231,7 +1273,7 @@ function stepWorld(dt) {
   v.solids = terrain.nearby(v.pos.x, v.pos.z, 18, v.solids);
   acc += dt * G.timeScale;
   let n = 0;
-  while (acc >= STEP && n++ < 14) { readInput(STEP); v.step(STEP); if (race.active) race.step(STEP); acc -= STEP; }
+  while (acc >= STEP && n++ < 14) { readInput(STEP); v.step(STEP); traffic.step(STEP); if (race.active) race.step(STEP); acc -= STEP; }
   if (acc > STEP * 4) acc = 0;
   // a phone: every bale is its own draw call (there can be hundreds), so only the ones near you are drawn
   if (Q.lite && (baleCull = (baleCull + 1) % 10) === 0) { const f = focus(); for (const b of bales) b.mesh.visible = Math.hypot(b.pos.x - f.x, b.pos.z - f.z) < 150; }
@@ -1282,10 +1324,11 @@ function tick(dt) {
     deck.update(dt);
     feelFrame(dt);
     traffic.parked = G.onFoot ? G.veh.pos : null;
+    traffic.car = G.veh;
     traffic.update(dt, G.onFoot ? walker : G.veh);
     race.update(dt, G.veh, camera);
   } else if (G.veh) {
-    if (G.mode === 'menu') { const v = G.veh; stepIdle(v, dt); syncRoot(); traffic.update(dt, v); }
+    if (G.mode === 'menu') { const v = G.veh; stepIdle(v, dt); syncRoot(); traffic.car = v; traffic.update(dt, v); }
   }
   if (G.veh) {
     weatherFrame(dt);
@@ -1318,7 +1361,7 @@ function stepIdle(v, dt) {
   v.solids = terrain.nearby(v.pos.x, v.pos.z, 18, v.solids);
   v.input.throttle = 0; v.input.brake = 1; v.input.steer = 0; v.input.hand = 1; v.input.nitro = 0;
   acc += dt; let n = 0;
-  while (acc >= STEP && n++ < 10) { v.step(STEP); acc -= STEP; }
+  while (acc >= STEP && n++ < 10) { v.step(STEP); traffic.step(STEP); acc -= STEP; }
   if (acc > STEP * 4) acc = 0;
 }
 function renderMirror() {

@@ -5,7 +5,7 @@ import { makeDetail, makeCropAtlas, makeDeck } from './textures.js';
 import { WIND, LIT, LIT_VERT, LIT_FRAG, CLOUD } from './flora.js';
 
 const key = (x, z) => x + ',' + z;
-const HARD = new Set([KIND.PATH, KIND.FORD, KIND.BED]);   // gravel and stone: wheels leave nothing here
+const HARD = new Set([KIND.PATH, KIND.FORD, KIND.BED, KIND.SCREE]);   // gravel and stone: wheels leave nothing here
 // [trunk radius, break impulse (Infinity = never), solid height]
 export const SOLID = {
   [OBJ.BEECH]: [0.34, 21000, 30], [OBJ.SPRUCE]: [0.3, 18000, 30], [OBJ.BIRCH]: [0.16, 7000, 20], [OBJ.OAK]: [0.72, Infinity, 20],
@@ -172,6 +172,9 @@ export class Terrain {
           d1 = mix(d1, texture2D(uDetail, side * .19).r, steep); d3 = mix(d3, texture2D(uDetail, side * .71).b, steep);
         }
         vec3 col = sp.rgb * (.66 + .46 * d1 + .26 * d2 + .16 * (d3 - .5));
+        // too steep for soil to hold (a mountain face, a road's cutting): bare grey rock in bands
+        float rock = 1. - smoothstep(.42, .6, vUpY + (d2 - .5) * .12);
+        if (rock > .01) col = mix(col, vec3(.2, .19, .17) * (.62 + .5 * d1 + .35 * d3) * (.85 + .3 * fract(vW.y * .37 + d2)), rock * .92);
         float tr = smoothstep(.05, .75, sp.a);
         vec3 torn = vec3(.082, .058, .038) * (.68 + .85 * d3 + .4 * d1);
         if (uRoadOn > .5) {
@@ -546,7 +549,7 @@ export class Terrain {
     c.obj = list.map((o, i) => ({ ...o, id: c.k + ':' + i, chunk: c }));
     c.obj = c.obj.filter(o => !this.broken.has(o.id));
     c.solids = []; c.bushes = [];
-    const fl = this.flora, far = [], posts = [], houses = [];
+    const fl = this.flora, far = [], posts = [], houses = [], crags = [];
     c.props = [];
     const dummy = new THREE.Object3D();
     for (const o of c.obj) {
@@ -554,6 +557,18 @@ export class Terrain {
       if (def) far.push(o);
       else if (o.type === OBJ.POST) posts.push(o);
       else if (o.type === OBJ.HOUSE) houses.push(o);
+      else if (o.type === OBJ.CRAG) {
+        // set into the slope: leaned back with the face (mostly, it still stands a little proud of it)
+        // and sunk until its base is in the ground all round, so nothing hangs in the air
+        const r = o.s * 0.85, hx = height(o.x + r, o.z) - height(o.x - r, o.z), hz = height(o.x, o.z + r) - height(o.x, o.z - r);
+        const n = new THREE.Vector3(-hx, 2 * r, -hz).normalize();
+        o.lean = new THREE.Vector3(0, 1, 0).lerp(n, 0.7).normalize();
+        o.y -= o.s * (0.12 + 0.25 * (1 - n.y));
+        crags.push(o);
+        // the small ones in the scree are rubble a wheel climbs over; the rest stop a car dead
+        if (o.s > 0.55) c.solids.push({ x: o.x, z: o.z, r: o.s * 0.9, str: Infinity, top: o.y + o.s * 1.25, o });
+        continue;
+      }
       else if (o.type === OBJ.BALE) { this.onSpawnBale?.(o, c); continue; }
       else if (o.type === OBJ.RAIL) { /* collision only: the rail itself is part of the deck mesh */ }
       else {
@@ -586,7 +601,28 @@ export class Terrain {
       } else if (SOLID[o.type]) {
         const [r, str, top] = SOLID[o.type];
         c.solids.push({ x: o.x, z: o.z, r: r * (o.type === OBJ.ROCK ? o.s * 1.1 : o.s), str, top: o.y + top, o });
-      } else if (o.type === OBJ.BUSH) c.bushes.push(o);
+      } else if (o.type === OBJ.BUSH || o.type === OBJ.PINE) c.bushes.push(o);
+    }
+    // crags: one instanced mesh per shape, there can be a hundred in a chunk of mountainside
+    c.crags = [];
+    if (crags.length) {
+      const C = fl.props[OBJ.CRAG], by = C.variants.map(() => []);
+      for (const o of crags) by[Math.abs(Math.floor(o.x * 0.37 + o.z * 0.91)) % by.length].push(o);
+      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), q2 = new THREE.Quaternion(), e = new THREE.Euler(), sc = new THREE.Vector3(), at = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
+      by.forEach((list, vi) => {
+        if (!list.length) return;
+        const im = new THREE.InstancedMesh(C.variants[vi], C.mat, list.length);
+        list.forEach((o, k) => {
+          // turned at random, a little out of true (rock that has settled), then leaned with the slope
+          const f = o.rot * 9.7;
+          e.set(Math.sin(f) * 0.1, o.rot, Math.cos(f * 1.3) * 0.1); q.setFromEuler(e);
+          q.premultiply(q2.setFromUnitVectors(UP, o.lean));
+          im.setMatrixAt(k, m4.compose(at.set(o.x, o.y, o.z), q, sc.setScalar(o.s)));
+        });
+        im.computeBoundingSphere();
+        im.castShadow = !this.q.lite; im.receiveShadow = true;
+        this.scene.add(im); c.crags.push(im);
+      });
     }
     // wires sag between each pole and the next, which may stand in the neighbouring chunk
     const spans = c.obj.filter(o => o.type === OBJ.POLE && o.wire);
@@ -670,6 +706,7 @@ export class Terrain {
   removeChunk(c) {
     this.disposeSurface(c);
     for (const g of c.props || []) this.scene.remove(g);
+    for (const im of c.crags || []) { this.scene.remove(im); im.dispose(); }
     for (const m of c.deck || []) { this.scene.remove(m); m.geometry.dispose(); }
     if (c.wires) { this.scene.remove(c.wires); c.wires.geometry.dispose(); for (const [k, v] of this.spanIndex) if (v.c === c) this.spanIndex.delete(k); }
     if (c.tree) this.setTreeDetail(c, false);

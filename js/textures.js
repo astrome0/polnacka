@@ -287,6 +287,21 @@ export function makeRock() {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
 }
 
+// Mountain rock for the crags: grey grain and dark cracks, no moss (up there the lichen is in the vertex colour)
+export function makeCrag() {
+  const [c, x] = canvas(256, 256);
+  x.fillStyle = '#8f8c86'; x.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 900; i++) { const v = R(78, 176) | 0; x.fillStyle = `rgba(${v},${v - 1},${v - 5},.24)`; x.beginPath(); x.ellipse(R(0, 256), R(0, 256), R(2, 18), R(1.5, 10), R(0, 3), 0, 7); x.fill(); }
+  x.lineCap = 'round';
+  for (let i = 0; i < 26; i++) {
+    let px = R(0, 256), py = R(0, 256), a = R(0, 6.28);
+    x.strokeStyle = `rgba(40,38,36,${R(0.25, 0.55).toFixed(2)})`; x.lineWidth = R(0.8, 2.2); x.beginPath(); x.moveTo(px, py);
+    for (let k = 0; k < 7; k++) { a += R(-0.7, 0.7); px += Math.cos(a) * R(6, 16); py += Math.sin(a) * R(6, 16); x.lineTo(px, py); }
+    x.stroke();
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+}
+
 // Tiling cloud cover for the sky's clouds and their shadows (clouds.js). The values stay readable
 // so the car can ask what's overhead.
 export function makeClouds() {

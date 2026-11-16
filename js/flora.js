@@ -1,8 +1,8 @@
 // Tree, bush and prop models plus far-distance impostors baked from those same models.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { makeBark, makeLeafAtlas, makeWood, makeBale, makeRock, makeTiles } from './textures.js';
-import { OBJ, noise } from './world.js';
+import { makeBark, makeLeafAtlas, makeWood, makeBale, makeRock, makeCrag, makeTiles } from './textures.js';
+import { OBJ, noise, RANGE } from './world.js';
 
 const R = (a, b) => a + Math.random() * (b - a);
 export const WIND = { value: 0 };
@@ -36,7 +36,14 @@ export const CLOUD_TILE = 8192;
 export const HAZE = /* glsl */`
   float hazeAir(float d, float k) { return 1. - exp(-k * d * .45) * exp(-k * k * d * d * .6); }
   float hazeEdge(float d, float edge) { return smoothstep(edge * .4, edge * .95, d); }
-  float haze(float d, float k, float edge) { return 1. - (1. - hazeAir(d, k)) * (1. - hazeEdge(d, edge)); }`;
+  float haze(float d, float k, float edge) { return 1. - (1. - hazeAir(d, k)) * (1. - hazeEdge(d, edge)); }
+  // Over the mountain range the land goes on past the drawn chunks (range.js), so there the edge
+  // doesn't fade into the sky: only the air's haze, the same as on the far mesh behind it.
+  float rangeOn(vec2 w) {
+    float p = ${RANGE.RC.toFixed(6)} * w.x + ${RANGE.RS.toFixed(6)} * w.y - ${RANGE.p.toFixed(1)}, q = ${(-RANGE.RS).toFixed(6)} * w.x + ${RANGE.RC.toFixed(6)} * w.y - ${RANGE.q.toFixed(1)};
+    return (1. - smoothstep(.8, .97, abs(p) / ${RANGE.lenP.toFixed(1)})) * (1. - smoothstep(.8, .97, abs(q) / ${RANGE.lenQ.toFixed(1)}));
+  }
+  float hazeAt(float d, float k, float edge, vec2 w) { return 1. - (1. - hazeAir(d, k)) * (1. - hazeEdge(d, edge) * (1. - rangeOn(w))); }`;
 export const CLOUD = /* glsl */`
   uniform sampler2D uWxTex, uIceTex; uniform vec4 uWxP; uniform vec3 uWxS;
   float cloudShade(float n) { return 1. - uCloudAmt * smoothstep(uCloudP.z, uCloudP.w, n); }
@@ -95,7 +102,7 @@ export const LIT_VERT = /* glsl */`
       vec3 b = wp - uBeamPos; float bd = length(b);
       vLight += vec3(1., .93, .8) * uBeamI * smoothstep(.76, .95, dot(b / bd, uBeamDir)) / (1. + bd * bd * .012);
     }
-    vFogA = haze(dist, uFogD, uFogEdge);
+    vFogA = hazeAt(dist, uFogD, uFogEdge, wp.xz);
     vFogC = mix(uFogCol, uGlowCol, pow(s, 6.));
   }`;
 export const LIT_FRAG = 'varying vec3 vLight, vFogC, vGlow; varying float vFogA, vSunK;';
@@ -189,6 +196,42 @@ function crown(cards, c, rx, ry, count, size, cell) {
 
 function tubes(list) { return mergeGeometries(list, false); }
 
+// A crag: an icosphere bent into bedded rock. The bedding dips a little and the layers step out as
+// ledges, the top is planed off, and the base runs deep so it can sit on a steep slope without its
+// underside showing. Every face keeps its own normal (the geometry is non-indexed), which gives the
+// hard broken look; vertex colour does the lichen on top and the grime underneath.
+// Base radius ~1 (scaled by the object's size), standing ~1.1 x sy above the ground.
+function cragGeo(seed, [sx, sy, sz]) {
+  const g = new THREE.IcosahedronGeometry(1, 2), p = g.attributes.position, v = new THREE.Vector3();
+  const dip = 0.18 + seed * 0.11, bed = 0.3 + seed * 0.04;
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    const k = 0.78 + 0.42 * (noise(v.x * 1.3 + seed * 7.1, v.y * 1.3 + v.z * 0.9 - seed * 3) + 0.5);
+    const x = v.x * k * sx, z = v.z * k * sz;
+    let y = v.y * k * sy;
+    const plane = y + x * dip, q = Math.round(plane / bed) * bed;
+    y += (q - plane) * 0.55;
+    if (y > 0.75 * sy) y = 0.75 * sy + (y - 0.75 * sy) * 0.35;
+    if (y < 0) y *= 1.6;
+    p.setXYZ(i, x, y + 0.2 * sy, z);
+  }
+  g.computeVertexNormals();
+  const n = g.attributes.normal, col = new Float32Array(p.count * 3);
+  for (let f = 0; f < p.count; f += 3) {
+    const ny = n.getY(f), y = (p.getY(f) + p.getY(f + 1) + p.getY(f + 2)) / 3;
+    const r = Math.sin(f * 12.9898 + seed * 78.233) * 43758.5453, rr = r - Math.floor(r), t = 1 + rr * 0.22;
+    let c = [1.02 * t, 1 * t, 0.95 * t];
+    // pale grey-green lichen in patches on the faces turned to the sky, not a coat of moss
+    const lichen = Math.max(0, ny - 0.6) * (rr > 0.45 ? 1.1 : 0.3);
+    c = c.map((u, k) => u + ([1.08, 1.12, 0.96][k] - u) * lichen);
+    const grime = (ny < -0.15 ? 0.6 : 1) * (y < 0.25 ? 0.82 : 1);
+    for (let k = 0; k < 3; k++) col.set([c[0] * grime, c[1] * grime, c[2] * grime], (f + k) * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.computeBoundingSphere();
+  return g;
+}
+
 function beech() {
   const h = 25, trunk = curve(new THREE.Vector3(0, -0.5, 0), new THREE.Vector3(0.05, 1, 0), h * 0.78, 9, 0.022);
   const parts = [taper(trunk, 8, t => 0.42 * (1 - t * 0.85) + 0.07 + 0.13 * Math.pow(1 - Math.min(1, t * 8), 2), 7)];
@@ -240,6 +283,27 @@ function spruce() {
     }
   }
   return { name: 'spruce', height: h, trunk: taper(trunk, 7, t => 0.36 * (1 - t) + 0.03, 8), leaves: c.geometry(), bark: 'dark' };
+}
+// Kosodřevina (dwarf mountain pine) at the tree line: no trunk to speak of, a dozen stems that crawl
+// out along the ground and turn up at their ends, so the shrub is one dense dark mound, waist to head
+// high and a few metres across. The needles sit in tufts on the outer, upturned half of every stem.
+function dwarfPine() {
+  const parts = [], c = new Cards(), mid = new THREE.Vector3(0, 0.8, 0);
+  for (let i = 0; i < 12; i++) {
+    const a = i / 12 * 6.283 + R(-0.25, 0.25), L = R(1.4, 2.3), rise = R(0.9, 1.7), pts = [];
+    for (let k = 0; k <= 6; k++) {
+      const t = k / 6, r = 0.15 + L * t, y = -0.25 + 0.3 * t + rise * Math.pow(t, 2.6), w = Math.sin(t * 3 + i) * 0.12;
+      pts.push(new THREE.Vector3(Math.cos(a + w) * r, y, Math.sin(a + w) * r));
+    }
+    parts.push(taper(pts, 5, t => 0.07 * (1 - t * 0.7), 2));
+    for (let k = 2; k <= 6; k++) {
+      const p = pts[k], n = k === 6 ? 5 : 2;
+      for (let j = 0; j < n; j++) c.add(new THREE.Vector3(p.x + R(-0.25, 0.25), p.y + R(-0.1, 0.3), p.z + R(-0.25, 0.25)), R(0.42, 0.6), 1, mid, 0.42 + 0.12 * k, -0.25, 1.1);
+    }
+  }
+  // a dark heart, so the mound doesn't show daylight through its middle
+  crown(c, new THREE.Vector3(0, 0.55, 0), 1.2, 0.45, 12, 0.55, 1);
+  return { name: 'kosodrevina', height: 4.2, trunk: tubes(parts), leaves: c.geometry(), bark: 'dark' };
 }
 function bush() {
   const c = new Cards(), m = new THREE.Vector3(0, 1.1, 0);
@@ -297,13 +361,13 @@ export class Flora {
     this.barks = { beech: makeBark('beech'), birch: makeBark('birch'), dark: makeBark('dark') };
     this.barkMats = {};
     for (const k in this.barks) this.barkMats[k] = new THREE.MeshLambertMaterial({ map: this.barks[k] });
-    this.types = { [OBJ.BEECH]: beech(), [OBJ.SPRUCE]: spruce(), [OBJ.BIRCH]: birch(), [OBJ.OAK]: oak(), [OBJ.BUSH]: bush() };
+    this.types = { [OBJ.BEECH]: beech(), [OBJ.SPRUCE]: spruce(), [OBJ.BIRCH]: birch(), [OBJ.OAK]: oak(), [OBJ.BUSH]: bush(), [OBJ.PINE]: dwarfPine() };
     this.bake(renderer);
     this.props = this.buildProps();
   }
   // render each model from the side into an atlas, used as crossed cards far away
   bake(renderer) {
-    const S = 512, order = [OBJ.BEECH, OBJ.SPRUCE, OBJ.BIRCH, OBJ.OAK, OBJ.BUSH], cols = 5;
+    const S = 512, order = [OBJ.BEECH, OBJ.SPRUCE, OBJ.BIRCH, OBJ.OAK, OBJ.BUSH, OBJ.PINE], cols = 6;
     const rt = new THREE.WebGLRenderTarget(S * cols, S, { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, samples: 4 });
     rt.texture.colorSpace = THREE.LinearSRGBColorSpace;
     const scene = new THREE.Scene();
@@ -350,7 +414,7 @@ export class Flora {
           vec3 V = cameraPosition - wp.xyz;
           litSun = .55;
           litVertex(wp.xyz, normalize(vec3(V.x, length(V.xz) * .62, V.z)), .45);
-          vUv2 = vec2((uv.x + iCol) / 5., uv.y); gl_Position = projectionMatrix * viewMatrix * wp;
+          vUv2 = vec2((uv.x + iCol) / 6., uv.y); gl_Position = projectionMatrix * viewMatrix * wp;
         }`,
       fragmentShader: LIT_FRAG + /* glsl */`
         uniform sampler2D uMap; varying vec2 vUv2;
@@ -364,7 +428,7 @@ export class Flora {
     this.farDepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide });
     this.farDepth.onBeforeCompile = sh => {
       sh.uniforms.uCards = { value: rt.texture };
-      sh.vertexShader = 'attribute float iCol; varying vec2 vCard;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vCard = vec2((uv.x + iCol) / 5., uv.y);');
+      sh.vertexShader = 'attribute float iCol; varying vec2 vCard;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vCard = vec2((uv.x + iCol) / 6., uv.y);');
       sh.fragmentShader = 'uniform sampler2D uCards; varying vec2 vCard;\n' + sh.fragmentShader.replace('#include <map_fragment>', 'if (texture2D(uCards, vCard).a < .42) discard;');
     };
   }
@@ -385,6 +449,8 @@ export class Flora {
     }
     rockGeo.computeVertexNormals();
     const rock = new THREE.MeshLambertMaterial({ map: makeRock() });
+    // mountain crags: blocks of bedded rock with flat facets, ledges along the bedding and lichen on top
+    const crag = new THREE.MeshLambertMaterial({ map: makeCrag(), vertexColors: true });
     // hay barn with a gabled roof
     const barnParts = [box(9, 4, 6, 0, 2, 0)];
     const roof = new THREE.BufferGeometry();
@@ -453,6 +519,7 @@ export class Flora {
       [OBJ.BALE]: { parts: [[baleGeo, bale]] },
       [OBJ.LOG]: { parts: [[logGeo, this.barkMats.dark]], length: 5.2 },
       [OBJ.ROCK]: { parts: [[rockGeo, rock]] },
+      [OBJ.CRAG]: { variants: [[1, 1.45, 0.85], [1.45, 0.75, 1.1], [1.1, 1.05, 1]].map((sh, i) => cragGeo(i, sh)), mat: crag },
       [OBJ.BARN]: { parts: [[mergeGeometries(barnParts), wood], [roof, new THREE.MeshLambertMaterial({ color: 0x6d4a3a, side: THREE.DoubleSide })], [gable, darkWood]] },
       [OBJ.STAND]: { parts: [[mergeGeometries(legs), wood]] },
       [OBJ.POLE]: { parts: [[mergeGeometries(pole), darkWood]] },
