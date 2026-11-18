@@ -65,7 +65,7 @@ export const CARS = [
     // an old Land Rover / UAZ-style field car: flat panels, an upright screen, round lamps, the spare on
     // the bonnet and a canvas tilt over the back. Soft springs, weak dampers and a high centre of mass,
     // so it leans and rocks; slow, but the long gears and grip pull it through mud.
-    id: 'kamzik', name: 'Kamzík', tag: 'Veterán 4×4', isNew: true, blurb: 'Starý, měkký a houpe se jak loďka. V bahně nemá konkurenci.',
+    id: 'kamzik', name: 'Kamzík', tag: 'Veterán 4×4', blurb: 'Starý, měkký a houpe se jak loďka. V bahně nemá konkurenci.',
     paint: 0x4f5b3a, roughness: 0.55, plate: 'KMZ 1965', trim: 0x1a1b1d, kind: 'pickup', maxKmh: 140,
     stations: [
       st(-2.0, 0.6, 0.84, 0.78, 1.04, 0.77, 1.06, 0.72), st(-1.97, 0.52, 0.86, 0.84, 1.1, 0.83, 1.12, 0.78), st(-1.8, 0.5, 0.86, 0.85, 1.1, 0.84, 1.12, 0.8),
@@ -99,6 +99,39 @@ export const CARS = [
     exhaust: { x: [0.34], y: 0.8, up: 1.0 },
     // soft springs on long travel with weak dampers: it keeps bobbing after a bump, sits down hard under power
     phys: { mass: 820, comY: 0.55, I: [1100, 1300, 450], k: 14000, c: 1100, travel: 0.42, torque: 330, redline: 7200, idle: 1000, gears: [3.2, 2.2, 1.6, 1.25, 1.0], final: 4.3, drive: 'rwd', mu: 1.12, nitro: 0.9, brake: 2600, top: 44, offroad: 1.18, mudGrip: 0.6, mudDig: 0.8, mudRes: 1.1, mudSink: 0.8 },
+  },
+  {
+    // a farm tractor: big rear wheels with chevron lugs, small steering wheels in front (wheelF, trackF), a tall
+    // glass cab over the back axle, the bonnet in front with the stack on it. Heavy and slow, hardly any springs
+    // (it bounces on its tyres), a crawler gearbox, rear-wheel drive. buildTractor adds the rest.
+    id: 'tractor', name: 'Bohouš', tag: 'Traktor', isNew: true, blurb: 'Pomalý, hlučný a nezastavitelný. V poli doma, na silnici postrach.',
+    paint: 0xb8261c, roughness: 0.45, plate: 'TRAKTOR', trim: 0x1a1b1d, kind: 'tractor', maxKmh: 60, noFender: true, hw: 1.14,
+    // (the first station, 2 cm behind the cab, is only belt high: the strip of sheet up to the next one is the
+    // cab's back wall, and marks.flatRear makes it glass you see into the cab through, like flatFront in front)
+    stations: [
+      st(-1.5, 1.0, 1.25, 0.52, 1.45, 0.52, 1.48, 0.5),
+      st(-1.48, 1.0, 1.25, 0.52, 1.45, 0.52, 2.5, 0.46), st(-1.44, 0.95, 1.25, 0.6, 1.46, 0.6, 2.62, 0.55), st(-1.35, 0.92, 1.25, 0.62, 1.46, 0.63, 2.66, 0.58),
+      st(-1, 0.9, 1.25, 0.62, 1.46, 0.63, 2.68, 0.6), st(-0.7, 0.9, 1.25, 0.62, 1.46, 0.63, 2.68, 0.6), st(-0.4, 0.9, 1.25, 0.62, 1.46, 0.63, 2.68, 0.6), st(-0.18, 0.9, 1.25, 0.62, 1.46, 0.63, 2.66, 0.6),
+      st(-0.1, 0.82, 1.2, 0.44, 1.5, 0.42, 1.58, 0.34), st(1.3, 0.78, 1.18, 0.44, 1.5, 0.42, 1.58, 0.34), st(1.65, 0.8, 1.15, 0.42, 1.42, 0.38, 1.5, 0.3), st(1.72, 0.85, 1.12, 0.36, 1.34, 0.32, 1.4, 0.24),
+    ],
+    // (every mark inside the stations' range, or the body grows a wall: tail and bumpR sit on the cab's back, so no boot, no rear bumper)
+    marks: { cowl: -0.1, roofF: -0.18, roofR: -1.4, tail: -1.48, doorF: -0.28, doorR: -1.18, bumpF: 1.6, bumpR: -1.48, pillars: [], hoodEnd: 1.66, flatFront: true, flatRear: -1.485 },
+    wheel: { r: 0.86, w: 0.46, knobby: true, lugs: true, rim: 0xe9e2cf, spokes: 0 }, wheelF: { r: 0.5, w: 0.3, knobby: true, lugs: true, rim: 0xe9e2cf, spokes: 0 },
+    axle: { f: 1.2, r: -1.12 }, track: 0.92, trackF: 0.74,
+    // the driver sits high in the middle; the steering wheel stands up from the floor, nearly flat
+    eye: [0, 2.2, -0.82], wheelPos: [0, 1.84, -0.46], wheelY: 1.84, wheelTilt: 0.85, dashZ: -0.24, buddy: [0.4, 2.02, -0.56], z0: -0.4,
+    lamps: { y: 1.26, x: 0.27, r: 0.07 }, grille: { y: 1.08, w: 0.64, h: 0.44 },
+    stack: [0.26, 2.78, 0.72],
+    // (the whole tractor sits 0.4 m back on its centre of mass, z0: nearly half its weight on the front wheels,
+    // as with real front weights; with the cab over the centre it reared over backwards on every hill)
+    // a diesel that tops out at 2400 rpm through a crawler box: about 7 km/h in first, 40 at the top
+    // Springs (2026-11-18, Patrik: "moc se houpe, správný traktor neskáče"): with k 70000 it sank 0.137 m
+    // of its 0.14 under its own weight, so it rode on the bump stops (55–110 hits in 14 s over a field)
+    // and threw itself about. Now it sinks 0.12 of 0.32, the big tyres roll over small bumps (bumpK), and
+    // the centre of mass sits at 0.7 (1.0 rolled it over in a 25 km/h slalom on a field). Measured on
+    // three fields at 30 km/h: wheels off the ground 4–15 % of the time (was 24–35 %), 0–2 bump stops,
+    // vertical shaking 3.5–6.4 m/s² (was 6.8–8.2); slalom at 25 km/h ±0.6 steer: no rollover (max 32°).
+    phys: { mass: 3900, comY: 0.7, I: [7400, 8600, 3200], k: 80000, c: 7000, travel: 0.32, bumpK: 0.5, torque: 520, redline: 2400, idle: 780, gears: [6.2, 4.4, 3.1, 2.2, 1.6, 1.15], final: 16.5, drive: 'rwd', mu: 1.15, nitro: 0.6, brake: 9000, top: 12, offroad: 1.3, mudGrip: 1.0, mudDig: 0.2, mudRes: 0.5, mudSink: 0.4 },
   },
 ];
 
@@ -300,12 +333,20 @@ function roundedBox(w, h, d, x, y, z, r0 = 0.03) {
 }
 
 function buildWheel(spec, env) {
-  const { r, w, knobby, rim, spokes, big } = spec.wheel, g = new THREE.Group();
+  const { r, w, knobby, rim, spokes, big, lugs } = spec.wheel, g = new THREE.Group();
   const hw = w / 2, rimR = r * (big ? 0.5 : 0.66);
   const prof = [[rimR, -hw * 0.92], [r * 0.9, -hw], [r * 0.975, -hw * 0.92], [r, -hw * 0.66], [r, hw * 0.66], [r * 0.975, hw * 0.92], [r * 0.9, hw], [rimR, hw * 0.92]];
   const tyreG = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0], p[1])), 40); tyreG.rotateZ(Math.PI / 2);
   const parts = [tyreG];
-  if (knobby) {
+  if (lugs) {
+    // a tractor tyre: tall bars set in a chevron, each half slanted the other way, gaps between them
+    const n = Math.round(r * 26), k = r * 0.075;
+    for (let i = 0; i < n; i++) for (const s of [-1, 1]) {
+      const b = new THREE.BoxGeometry(hw * 0.95, k * 2, r * 0.09);
+      b.rotateY(s * 0.55); b.translate(s * hw * 0.46, r + k * 0.6, s * r * 0.06); b.rotateX((i + (s > 0 ? 0.5 : 0)) / n * Math.PI * 2);
+      parts.push(b);
+    }
+  } else if (knobby) {
     const n = big ? 22 : 30, k = big ? 0.075 : 0.02;
     for (let i = 0; i < n; i++) for (const s of [-1, 1]) {
       const b = new THREE.BoxGeometry(hw * 0.86, k * 1.8, r * 0.1);
@@ -357,6 +398,8 @@ function classify(spec, z, row) {
     if (row >= RAIL_ROW && z > m.roofF && z < (m.glassTo ?? m.cowl - 0.04)) return 'glass';
     // a cab-over truck's screen is its whole upright front between the belt and the roof
     if (m.flatFront && row >= BELT_ROW + 1 && z > m.roofF && z < m.cowl) return 'glass';
+    // ...and a tractor's back wall (the strip between its first two stations)
+    if (m.flatRear != null && row >= BELT_ROW + 1 && z < m.flatRear) return 'glass';
     if (row >= BELT_ROW && row < RAIL_ROW - 1 && z > m.roofR + 0.02 && z < m.cowl - 0.1 && !(m.pillars || []).some(p => z > p[0] && z < p[1])) return 'glass';
     if (row >= BELT_ROW && z > m.tail + 0.02 && z < m.roofR - 0.02 && !m.bed) return 'glass';
   }
@@ -500,8 +543,8 @@ export function buildCar(spec, env, opt = {}) {
   for (const z of [spec.axle.f, spec.axle.r]) for (const s of [-1, 1]) {
     const well = new THREE.Mesh(new THREE.CylinderGeometry(spec.wheel.r + 0.05, spec.wheel.r + 0.05, 0.42, 22, 1, true, -0.1, Math.PI + 0.2).rotateZ(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 1, side: wellSide }));
     // the tube's outer rim has to stay inside the body, or it shows as a black flange where the flank curves in
-    well.position.set(s * Math.min(spec.track + 0.02, S[4].w - 0.23), axY, z); if (!lift && !spec.open) hull.add(well);
-    if (spec.kind !== 'coupe' && !lift && !spec.open) { // plastic arch
+    well.position.set(s * Math.min(spec.track + 0.02, S[4].w - 0.23), axY, z); if (!lift && !spec.open && spec.kind !== 'tractor') hull.add(well);
+    if (spec.kind !== 'coupe' && spec.kind !== 'tractor' && !lift && !spec.open) { // plastic arch
       const arch = new THREE.Mesh(new THREE.TorusGeometry(spec.wheel.r + 0.08, 0.05, 8, 26, Math.PI * 1.05).rotateY(Math.PI / 2).rotateX(-0.04), trimM);
       arch.position.set(s * (S[4].w + 0.02), spec.wheel.r, z); arch.scale.x = 0.7; hull.add(arch);
     }
@@ -523,7 +566,8 @@ export function buildCar(spec, env, opt = {}) {
     const tl = L ? lampLens(0.055, 0.055, 0.025, 0x8a0a0a, 0xff1408, s * tail.w * 0.78, tail.mid + 0.02, tail.z - 0.008)
       : lampLens(0.18, 0.07, 0.04, 0x8a0a0a, 0xff1408, s * tail.w * 1.02, spec.kind === 'pickup' ? 1.02 : tail.mid + 0.2, zR + (spec.kind === 'coupe' ? -0.02 : -0.02));
     hull.add(tl); tails.push(tl);
-    if (L) hull.add(new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.01, 6, 20).translate(s * tail.w * 0.78, tail.mid + 0.02, tail.z - 0.01), chrome));
+    // (not the tractor: its tail lamps move to the fenders, and the empty rings stayed on its back)
+    if (L && spec.kind !== 'tractor') hull.add(new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.01, 6, 20).translate(s * tail.w * 0.78, tail.mid + 0.02, tail.z - 0.01), chrome));
   }
   // grille, plate, intakes
   // the supercar's nose face is only a hand high: its intake and plate share it, nothing hangs below
@@ -676,15 +720,15 @@ export function buildCar(spec, env, opt = {}) {
 
   // underside: frame for trucks, a flat tray otherwise
   const under = new THREE.Group();   // no lift here: the hull it joins is already raised
-  under.add(new THREE.Mesh(box(1.3, 0.06, zF - zR - 0.6, 0, S[4].low - 0.02, (zF + zR) / 2), darkM));
+  under.add(new THREE.Mesh(box(spec.kind === 'tractor' ? 0.8 : 1.3, 0.06, zF - zR - 0.6, 0, S[4].low - 0.02, (zF + zR) / 2), darkM));
   hull.add(under);
 
   // ---- wheels -------------------------------------------------------------------------------
-  const wheelProto = buildWheel(spec, env);
+  const wheelProto = buildWheel(spec, env), wheelProtoF = spec.wheelF ? buildWheel({ ...spec, wheel: spec.wheelF }, env) : wheelProto;
   const wheels = [];
   for (const [zp, sx, front] of [[spec.axle.f, 1, 1], [spec.axle.f, -1, 1], [spec.axle.r, 1, 0], [spec.axle.r, -1, 0]]) {
-    const steer = new THREE.Group(); steer.position.set(sx * spec.track, spec.wheel.r, zp);
-    const spin = wheelProto.clone(); if (sx < 0) spin.rotation.y = Math.PI;
+    const steer = new THREE.Group(); steer.position.set(sx * (front ? spec.trackF ?? spec.track : spec.track), front ? spec.wheelF?.r ?? spec.wheel.r : spec.wheel.r, zp);
+    const spin = (front ? wheelProtoF : wheelProto).clone(); if (sx < 0) spin.rotation.y = Math.PI;
     const spinner = new THREE.Group(); spinner.add(spin); steer.add(spinner); root.add(steer);
     wheels.push({ steer, spinner, front: !!front, sx, z: zp, off: false });
   }
@@ -707,6 +751,7 @@ export function buildCar(spec, env, opt = {}) {
   }
 
   const links = spec.open ? buildBuggy(spec, env, root, hull, wheels, pf, trimM, chrome, headL) : null;
+  if (spec.kind === 'tractor') buildTractor(spec, env, hull, wheels, pf, paint, trimM, chrome, darkM, headL, tails);
 
   // an NPC car (opt.npc) has no cockpit and no beam: a person sits in it instead, and every extra
   // light would recompile every material in the scene
@@ -739,6 +784,142 @@ function stretch(mesh, a, b) {
   mesh.position.copy(a).addScaledVector(lD, 0.5);
   mesh.quaternion.setFromUnitVectors(UP, lD.divideScalar(l));
   mesh.scale.y = l;
+}
+
+// A wheel to the height its suspension puts it at (y, in the car's frame). Up to vis.maxY (the tractor's
+// rear wheels, under fixed fenders) it just moves; above it the tyre squashes instead: its top stays at
+// maxY + r and its bottom stays on the ground (y - r). vis.y keeps the physics' own height (multiplayer sends it).
+export function placeWheel(vis, y) {
+  vis.y = y;
+  const M = vis.maxY, st = vis.steer;
+  let k = 1;
+  if (M === undefined || y <= M) st.position.y = y;
+  else { k = Math.max(0.6, 1 - (y - M) / (2 * vis.r)); st.position.y = M + vis.r * (1 - k); }
+  st.scale.y = k;
+  // a mudguard that turns with the wheel but stays at its height on the body (the tractor's front ones)
+  if (vis.guard) { vis.guard.position.y = (vis.guardY - st.position.y) / k; vis.guard.scale.y = 1 / k; }
+}
+
+// ---- the tractor: rear fenders, front mudguards, stack, weights, roof, beacon, steps, linkage -------
+// Everything here hangs on the hull (it rides on the body), the front mudguards on the steering groups
+// (they turn with the wheels). Fenders take the body paint (with the attributes its shader reads), so
+// the garage repaints them with the rest.
+function buildTractor(spec, env, hull, wheels, pf, paint, trimM, chrome, darkM, headL, tails) {
+  const o = spec.z0 || 0, S = spec.stations, R = spec.wheel.r, W = spec.wheel.w, RF = spec.wheelF.r, WF = spec.wheelF.w, top = S[S.length - 1];
+  const add = (geo, mat, parent = hull, cast = true) => { const m = new THREE.Mesh(geo, mat); m.castShadow = cast; m.receiveShadow = true; parent.add(m); return m; };
+  const painted = g => { const p = g.attributes.position; g.setAttribute('aRest', new THREE.Float32BufferAttribute(p.array.slice(), 3)); g.setAttribute('aEdge', new THREE.Float32BufferAttribute(new Float32Array(p.count).fill(1), 1)); return g; };
+  const cream = new THREE.MeshStandardMaterial({ color: 0xe9e2cf, roughness: 0.5 });
+  const iron = new THREE.MeshStandardMaterial({ color: 0x2b2d31, roughness: 0.55, metalness: 0.5, envMap: env, envMapIntensity: 0.5 });
+  // a curved sheet over a wheel: a ring sector (r0..r1, angles a0..a1 from the front, upwards) w wide,
+  // built in the YZ plane and stood across X
+  const arc = (r0, r1, a0, a1, w) => {
+    const sh = new THREE.Shape(), n = 24;
+    for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; const p = [-r1 * Math.cos(a), r1 * Math.sin(a)]; i ? sh.lineTo(...p) : sh.moveTo(...p); }
+    for (let i = n; i >= 0; i--) { const a = a0 + (a1 - a0) * i / n; sh.lineTo(-r0 * Math.cos(a), r0 * Math.sin(a)); }
+    sh.closePath();
+    return new THREE.ExtrudeGeometry(sh, { depth: w, bevelEnabled: false, curveSegments: 1 }).rotateY(Math.PI / 2).translate(-w / 2, 0, 0);
+  };
+  // Rear fenders: a wide sheet over each big wheel, clear of its lugs (the chevron bars stand out to
+  // 1.12 R, buildWheel). Bolted to the body over where the hub sits at rest: they don't ride up and down
+  // with the wheel (Patrik, 2026-11-18). The suspension lifts the wheel up to 0.29 m above that, so the
+  // wheel stops 3 cm up (maxY) and its tyre squashes from there on (placeWheel): the lugs never come
+  // through the sheet and there is no gap a hand wide either. No raised lip along the edge (Patrik: "ta
+  // vyvýšenina"), and it ends level with the hub behind the wheel instead of hanging down towards the ground.
+  const LUG = 1.12, RIN = R * LUG + 0.06, RINF = RF * LUG + 0.07;
+  for (const t of tails) t.visible = false;      // (the body's own tail lamps sit too low and too close; ours go on the fenders)
+  for (const w of wheels.filter(w => !w.front)) {
+    const s = Math.sign(w.steer.position.x) || 1;
+    const at = new THREE.Group(); at.position.set(w.steer.position.x, R - (spec.lift || 0), w.steer.position.z); hull.add(at);
+    add(painted(arc(RIN, RIN + 0.035, -0.06, Math.PI + 0.04, W + 0.14)), paint, at);
+    // tail lamps on the fender's back, 0.5 m above the hub
+    const tl = lampLens(0.06, 0.06, 0.03, 0x8a0a0a, 0xff1408, s * 0.08, 0.5, -Math.sqrt((RIN + 0.035) ** 2 - 0.25) - 0.025); at.add(tl); tails.push(tl);
+    w.r = R; w.maxY = R + 0.03;
+  }
+  // the cab's side walls down to the floor, and a little seat on the left one (the buddy seat)
+  // (from in front of the axle to the cab's back wall, not 0.4 m past it: Patrik's "plíšky až moc dozadu")
+  for (const s of [-1, 1]) { const z0w = spec.axle.r + 0.7, z1w = S[0].z + 0.02; add(box(0.03, 0.5, z0w - z1w, s * (spec.track - W / 2 - 0.09), S[4].low + 0.5, (z0w + z1w) / 2), iron); }
+  add(roundedBox(0.34, 0.08, 0.32, spec.buddy[0], spec.buddy[1] - 0.72, spec.buddy[2] - 0.02, 0.03), new THREE.MeshStandardMaterial({ color: 0x24262b, roughness: 0.9 }));
+  // front mudguards ride on the steering, so they turn with the wheels, but not up and down with them
+  // (Patrik): placeWheel holds them at the hub's rest height (guardY) and the wheel stops 4 cm up, like the rear
+  for (const w of wheels.filter(w => w.front)) {
+    w.guard = add(painted(arc(RINF, RINF + 0.025, 0.15, Math.PI * 0.62, WF + 0.1)), paint, w.steer); w.guard.position.x = 0;
+    w.guardY = RF; w.r = RF; w.maxY = RF + 0.04;
+  }
+  // the front axle beam and its pivot; the rear axle trumpets from each hub in towards the body (on the wheel)
+  add(box(spec.trackF * 2 - WF - 0.06, 0.12, 0.14, 0, RF, spec.axle.f), iron);
+  add(new THREE.CylinderGeometry(0.1, 0.1, 0.18, 14).rotateX(Math.PI / 2).translate(0, RF + 0.08, spec.axle.f), iron);
+  for (const w of wheels.filter(w => !w.front)) {
+    const s = Math.sign(w.steer.position.x) || 1, len = spec.track - W / 2 - 0.12;
+    add(new THREE.CylinderGeometry(0.075, 0.11, len, 14).rotateZ(Math.PI / 2).translate(-s * (W / 2 + len / 2), 0, 0), iron, w.steer);
+  }
+  // frame rails under the bonnet down to the axle, the sump between them
+  for (const s of [-1, 1]) add(box(0.08, 0.22, 2.0, s * 0.3, 0.72, 1.1 + o), iron);
+  add(box(0.5, 0.26, 1.1, 0, 0.66, 0.8 + o), iron);
+  // front weights: a stack of grey cast-iron slabs on a carrier, gaps between them, the plate on the lowest
+  // one (in darkM the stack read as one black block, Patrik)
+  add(box(0.5, 0.06, 0.34, 0, 0.66, top.z + 0.14), iron);
+  const castM = new THREE.MeshStandardMaterial({ color: 0x5c6066, roughness: 0.62, metalness: 0.35, envMap: env, envMapIntensity: 0.6 });
+  for (let i = 0; i < 5; i++) {
+    add(roundedBox(0.92, 0.088, 0.22, 0, 0.74 + i * 0.105, top.z + 0.2, 0.025), castM);
+    if (i) add(box(0.12, 0.05, 0.03, 0, 0.74 + i * 0.105, top.z + 0.315), iron);      // the cast handle in each slab's face (not the lowest: the plate is there)
+  }
+  pf.position.set(0, 0.74, top.z + 0.315);
+  // the stack: up from the bonnet, a silencer on it, a flap that the exhaust lifts (just bent, here)
+  const [sx, sy, sz] = spec.stack, hood = S[8].top;
+  add(new THREE.CylinderGeometry(0.045, 0.045, sy - hood, 12).translate(sx, (sy + hood) / 2, sz), darkM);
+  add(new THREE.CylinderGeometry(0.075, 0.075, 0.5, 14).translate(sx, hood + 0.55, sz), darkM);
+  add(new THREE.CylinderGeometry(0.052, 0.052, 0.02, 12).translate(0, 0.02, -0.04).rotateX(-0.55).translate(sx, sy, sz), darkM);
+  // the air pre-cleaner on the other side: a short pipe with a domed bowl
+  add(new THREE.CylinderGeometry(0.04, 0.04, 0.3, 10).translate(-sx, hood + 0.15, sz - 0.1), darkM);
+  add(new THREE.SphereGeometry(0.09, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.7, 1).translate(-sx, hood + 0.3, sz - 0.1), chrome);
+  // cab: a cream roof that overhangs the glass, slim black corner posts, a door handle, a dark rear window
+  const roofY = S[4].top + 0.02;
+  add(roundedBox(1.46, 0.1, 1.5, 0, roofY + 0.05, -0.38 + o, 0.04), cream);
+  for (const [x, z] of [[0.6, 0.22], [-0.6, 0.22], [0.6, -1.0], [-0.6, -1.0]]) add(box(0.05, roofY - S[4].belt, 0.05, x, (roofY + S[4].belt) / 2, z + o), iron);
+  add(box(0.02, 0.03, 0.16, 0.635, 1.9, o), chrome);
+  // the rear window is the body's own glass now (marks.flatRear, the strip between the first two stations,
+  // Patrik: "udělat reálné okno oknem"); here only its black frame and the bar across its lower part
+  const rw = 1.0, rh = 1.0, ry = 1.98, rz = S[0].z - 0.02;
+  for (const [w, h, x, y] of [[rw + 0.06, 0.05, 0, ry + rh / 2], [rw + 0.06, 0.05, 0, ry - rh / 2], [0.05, rh, -rw / 2, ry], [0.05, rh, rw / 2, ry], [rw, 0.04, 0, 1.66]]) add(box(w, h, 0.03, x, y, rz), iron);
+  // under the cab's back, between the fenders: a plate in the body colour down over the transmission housing
+  // (there was a hole round the plate panel, then a grey plate; Patrik: red over all of it). Not the body
+  // paint itself: its shader cuts away everything near the rear wheels, which is why the panel was narrow.
+  // Its colour IS the paint's Color object, so the garage repaints it too. Just in front of the body's end
+  // (the plate number stays on top), just behind the housing's back face.
+  const backM = new THREE.MeshStandardMaterial({ roughness: spec.roughness ?? 0.45, metalness: 0.1, envMap: env, envMapIntensity: 0.6 });
+  backM.color = paint.color;
+  add(box((spec.track - W / 2 - 0.08) * 2, S[0].belt - 0.5, 0.03, 0, (S[0].belt + 0.5) / 2, S[0].z + 0.012), backM);
+  // work lamps on the roof's front edge (part of the headlights), the orange beacon on the back corner
+  for (const s of [-1, 1]) {
+    add(box(0.12, 0.08, 0.06, s * 0.55, roofY + 0.16, 0.3 + o), iron);
+    const l = lampLens(0.05, 0.035, 0.03, 0xf8f8ee, 0xfff0d0, s * 0.55, roofY + 0.16, 0.34 + o); hull.add(l); headL.push(l);
+  }
+  add(new THREE.CylinderGeometry(0.05, 0.06, 0.04, 14).translate(-0.55, roofY + 0.12, -0.95 + o), iron);
+  add(new THREE.SphereGeometry(0.06, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 1.4, 1).translate(-0.55, roofY + 0.14, -0.95 + o), new THREE.MeshStandardMaterial({ color: 0xff8a1a, roughness: 0.2, emissive: 0xff6a00, emissiveIntensity: 0.25, transparent: true, opacity: 0.9 }));
+  // steps up to the door (on the driver's left, in front of the big wheel), with a grab handle
+  for (let i = 0; i < 3; i++) add(box(0.26, 0.03, 0.18, 0.74, 0.42 + i * 0.32, 0.32 + o), iron);
+  add(box(0.02, 0.86, 0.02, 0.86, 0.85, 0.42 + o), iron);
+  add(new THREE.CylinderGeometry(0.015, 0.015, 0.7, 8).translate(0.66, 1.75, 0.26 + o), chrome);
+  // three-point linkage at the back, every piece joined to something (Patrik: the old bars floated behind
+  // it and a pin stood on a plate on the ground): two lower arms from the axle housing back and apart, the
+  // top link from the back of the body, a drawbar under the middle with its hitch pin on the end
+  const rod = (a, b, t) => {
+    const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), m = add(box(t, t, d.length(), 0, 0, 0), iron);
+    m.position.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), d.normalize()); return m;
+  };
+  // (all of it hangs on the transmission housing: the block under the cab between the rear wheels, which
+  // the arms seemed to float without; shorter, ending a hand behind the body, well off the ground)
+  const rear = S[0].z;
+  add(box(0.62, 0.48, 0.6, 0, 0.8, rear + 0.34), iron);                         // transmission housing (its back behind the red plate)
+  for (const s of [-1, 1]) {
+    rod([s * 0.27, 0.62, rear + 0.08], [s * 0.4, 0.6, rear - 0.42], 0.065);
+    add(new THREE.CylinderGeometry(0.045, 0.045, 0.1, 12).rotateZ(Math.PI / 2).translate(s * 0.4, 0.6, rear - 0.42), iron);   // ball ends
+  }
+  rod([0, 1.12, rear + 0.02], [0, 1.06, rear - 0.36], 0.06);
+  add(box(0.16, 0.12, 0.12, 0, 1.12, rear - 0.02), iron);                       // the top link's bracket on the body
+  rod([0, 0.68, rear + 0.05], [0, 0.66, rear - 0.3], 0.09);                     // drawbar
+  add(new THREE.CylinderGeometry(0.03, 0.03, 0.14, 10).translate(0, 0.74, rear - 0.27), chrome);
+  add(new THREE.SphereGeometry(0.035, 10, 8).translate(0, 0.82, rear - 0.27), chrome);
 }
 
 // ---- the buggy's tube cage, light pod, spare and the suspension you can see -----------------------
@@ -865,7 +1046,7 @@ function buildCockpit(spec, env, grid, cabU) {
   const dashMesh = new THREE.Mesh(dash, dashM); dashMesh.castShadow = false; g.add(dashMesh);
 
   // the gauges sit in the gap between the wheel's hub and the top of its rim, as seen from the seat
-  const wheelY = dashTop - 0.1, R0 = rally ? 0.165 : sport ? 0.17 : 0.19, dialZ = dz - 0.445;
+  const wheelY = spec.wheelY ?? dashTop - 0.1, R0 = rally ? 0.165 : sport ? 0.17 : spec.kind === 'tractor' ? 0.21 : 0.19, dialZ = dz - 0.445;
   const dep = (dialZ - ez) / (wz - ez), dialY = Math.min(dashTop - 0.02, (ey - (ey - wheelY - 0.05) * dep + ey - (ey - wheelY - R0) * dep) / 2);
   const bn = new THREE.CylinderGeometry(0.19, 0.2, 0.16, 24, 1, true, -Math.PI / 2, Math.PI).rotateX(Math.PI / 2);
   bn.scale(1.25, 0.62, 1); bn.translate(wx, dialY + 0.015, dialZ - 0.01);
@@ -905,8 +1086,12 @@ function buildCockpit(spec, env, grid, cabU) {
   }
   // rim marker at twelve o'clock, helps feel the angle
   const mark = new THREE.Mesh(new THREE.TorusGeometry(R, 0.0172, 8, 8, 0.12).rotateZ(Math.PI / 2 - 0.06), trim(rally ? 0xe8c820 : 0xc33028, 0.6)); wheel.add(mark);
-  const wheelHolder = new THREE.Group(); wheelHolder.position.set(wx, wheelY, wz); wheelHolder.rotation.x = 0.32; wheelHolder.add(wheel); g.add(wheelHolder);
-  const column = new THREE.Mesh(new THREE.CylinderGeometry(0.033, 0.04, 0.36, 12).rotateX(Math.PI / 2 + 0.32).translate(wx, wheelY + 0.06, wz + 0.2), trim(0x1d1e22, 0.7)); g.add(column);
+  const tilt = spec.wheelTilt ?? 0.32;
+  const wheelHolder = new THREE.Group(); wheelHolder.position.set(wx, wheelY, wz); wheelHolder.rotation.x = tilt; wheelHolder.add(wheel); g.add(wheelHolder);
+  // (a tractor's column stands up out of the floor, a car's comes out of the dash)
+  const colL = spec.wheelY ? 0.55 : 0.36;
+  const column = new THREE.Mesh(new THREE.CylinderGeometry(0.033, 0.04, colL, 12).rotateX(Math.PI / 2 + tilt)
+    .translate(wx, spec.wheelY ? wheelY - Math.sin(tilt) * colL / 2 : wheelY + 0.06, spec.wheelY ? wz + Math.cos(tilt) * colL / 2 : wz + 0.2), trim(0x1d1e22, 0.7)); g.add(column);
 
   // airbag: packed in the hub until a hard frontal hit, then fires and sags
   const bagG = new THREE.SphereGeometry(1, 44, 30), bp = bagG.attributes.position;

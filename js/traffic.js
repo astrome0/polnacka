@@ -2,7 +2,7 @@
 // Both are kinematic until something hits them; after that they are wrecks that skid to a stop.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CARS, buildPanels, bodyMaterial } from './cars.js';
+import { CARS, buildPanels, bodyMaterial, placeWheel } from './cars.js';
 import { height, surface, roadAt, lineS, inVillage, mountainAt, KIND } from './world.js';
 import { Driver, makeLook } from './people.js';
 import { CIVIL, buildNpcCar } from './civil.js';
@@ -304,7 +304,7 @@ export class Traffic {
     m.heading = Math.atan2(2 * (v.q.x * v.q.z + v.q.w * v.q.y), 1 - 2 * (v.q.x * v.q.x + v.q.y * v.q.y));
     v.wheels.forEach((w, i) => {
       const vis = c.wheels[i];
-      vis.steer.position.y = w.m.y + s.phys.comY - w.vis;
+      placeWheel(vis, w.m.y + s.phys.comY - w.vis);
       vis.steer.rotation.y = w.front ? v.steer + w.bent : w.bent;
       vis.spinner.rotation.x = w.spin;
     });

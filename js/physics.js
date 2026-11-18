@@ -24,14 +24,15 @@ export class Vehicle {
     this.pos = new THREE.Vector3(); this.q = new THREE.Quaternion(); this.v = new THREE.Vector3(); this.w = new THREE.Vector3();
     this.force = new THREE.Vector3(); this.torque = new THREE.Vector3();
     this.g = 9.81;
-    this.R = spec.wheel.r;
+    this.R = spec.wheel.r;   // the rear (driven) wheels'; a tractor's front ones are smaller (spec.wheelF, trackF)
     this.staticX = p.mass * 9.81 / (4 * p.k);
-    const mountY = this.R + p.travel - this.staticX;
+    const RF = spec.wheelF?.r ?? this.R;
     this.wheels = [
       [spec.axle.f, 1, true], [spec.axle.f, -1, true], [spec.axle.r, 1, false], [spec.axle.r, -1, false],
     ].map(([z, s, front]) => ({
-      m: new THREE.Vector3(s * spec.track, mountY - p.comY, z), front, s, omega: 0, spin: 0, x: 0, xPrev: 0, contact: false, slipL: 0, slipS: 0, load: 0,
-      surf: { kind: KIND.PATH, mu: 1, rough: 0, drag: 0, crop: 0, panel: false }, tick: Math.random() * 4 | 0, off: false, gx: 0, gy: 0, gz: 0, vis: this.R + p.travel - this.staticX, bent: 0,
+      R: front ? RF : this.R,
+      m: new THREE.Vector3(s * (front ? spec.trackF ?? spec.track : spec.track), (front ? RF : this.R) + p.travel - this.staticX - p.comY, z), front, s, omega: 0, spin: 0, x: 0, xPrev: 0, contact: false, slipL: 0, slipS: 0, load: 0,
+      surf: { kind: KIND.PATH, mu: 1, rough: 0, drag: 0, crop: 0, panel: false }, tick: Math.random() * 4 | 0, off: false, gx: 0, gy: 0, gz: 0, vis: (front ? RF : this.R) + p.travel - this.staticX, bent: 0,
       wl: -1e9, wd: 0, cx: 0, cz: 0,   // water level over this corner, depth at the tyre, current
     }));
     this.wet = 0; this.flood = 0;
@@ -134,15 +135,15 @@ export class Vehicle {
 
     const T = this.driveTorque(dt);
     const drivers = this.wheels.filter(w => !w.off && (p.drive === 'awd' || !w.front));
-    const Iw = 1.3 * (this.R / 0.33) ** 2;
     let inAir = true, contacts = 0;
 
     for (const w of this.wheels) {
       if (w.off) continue;
+      const Iw = 1.3 * (w.R / 0.33) ** 2;
       const mount = v1.copy(w.m).applyQuaternion(this.q).add(this.pos);
       const rest = p.travel;
       // the contact sits where the ground meets this wheel's line of travel
-      const cx = mount.x - up.x * (rest + this.R), cz = mount.z - up.z * (rest + this.R);
+      const cx = mount.x - up.x * (rest + w.R), cz = mount.z - up.z * (rest + w.R);
       w.tick = (w.tick + 1) & 3;
       if (w.tick === 0) {
         const s = surface(cx, cz);
@@ -164,12 +165,13 @@ export class Vehicle {
         w.dig = clamp((w.dig || 0) + dt * (spin > 1.3 ? (spin - 1.3) * 0.16 * mud * (p.mudDig ?? 1) : -0.22), 0, 1);
       } else if (w.dig) w.dig = Math.max(0, w.dig - dt * 0.6);
       w.mud = mud;
-      const groundH = ground(cx, cz, mount.y) + (noise(cx * 2.6, cz * 2.6) + noise(cx * 7.1 + 4, cz * 7.1)) * surf.rough
+      // (p.bumpK: a tall soft tyre rolls over the small bumps a car's wheel drops into; the tractor's 0.5)
+      const groundH = ground(cx, cz, mount.y) + (noise(cx * 2.6, cz * 2.6) + noise(cx * 7.1 + 4, cz * 7.1)) * surf.rough * (p.bumpK ?? 1)
         - (mud > 0.04 ? mud * (0.03 + 0.2 * (w.dig || 0)) * (p.mudSink ?? 1) : 0);
       w.wd = Math.max(0, w.wl - groundH);
       const denom = up.dot(n);
       const t = denom > 0.15 ? ((mount.x - cx) * n.x + (mount.y - groundH) * n.y + (mount.z - cz) * n.z) / denom : 1e3;
-      const xNew = rest + this.R - t;
+      const xNew = rest + w.R - t;
       w.xPrev = w.x;
       if (xNew <= 0) {
         w.contact = false; w.x = 0; w.load = 0; w.slipL = 0; w.slipS = 0;
@@ -213,7 +215,7 @@ export class Vehicle {
       const slipRef = 1.1, Kx = muN / slipRef;
       let tau = drivers.includes(w) ? T / drivers.length : 0;
       const brakeT = (inp.brake * p.brake * (w.front ? 0.6 : 0.4) + (inp.hand && !w.front ? 5200 : 0));
-      const R = this.R, A = dt / Iw;
+      const R = w.R, A = dt / Iw;
       let om = (w.omega + A * (tau + Kx * R * vf)) / (1 + A * Kx * R * R);
       let Fx = Kx * (om * R - vf);
       if (Fx > muN) { Fx = muN; om = w.omega + A * (tau - Fx * R); } else if (Fx < -muN) { Fx = -muN; om = w.omega + A * (tau - Fx * R); }
@@ -250,7 +252,7 @@ export class Vehicle {
       this.applyAt(f.x * lat + sx * Fy, f.y * lat + sy * Fy, f.z * lat + sz * Fy, r);
       if (w.wd > 0) {
         // the tyre wades: drag on what stands in the water, against the current
-        const rx = vcx - w.cx, rz = vcz - w.cz, sp = Math.hypot(rx, rz), k = 0.5 * 1000 * 0.95 * this.spec.wheel.w * Math.min(w.wd, this.R * 1.4) * 0.5;
+        const rx = vcx - w.cx, rz = vcz - w.cz, sp = Math.hypot(rx, rz), k = 0.5 * 1000 * 0.95 * this.spec.wheel.w * Math.min(w.wd, w.R * 1.4) * 0.5;
         rel.set(0, r.y * 0.3, 0).add(v2.copy(r).setY(0));
         this.applyAt(-k * sp * rx, 0, -k * sp * rz, rel);
       }

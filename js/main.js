@@ -10,7 +10,7 @@ import { Weather } from './weather.js';
 import { Tornadoes, TornadoView, Debris } from './tornado.js';
 import { Flora, WIND, LIT } from './flora.js';
 import { Terrain } from './terrain.js';
-import { CARS, buildCar } from './cars.js';
+import { CARS, buildCar, placeWheel } from './cars.js';
 import { tunedSpec, tuneOf, dress, initTuning } from './tuning.js';
 import { Vehicle, stepBale, WEATHER } from './physics.js';
 import { Damage } from './damage.js';
@@ -462,7 +462,7 @@ function syncRoot() {
     const vis = c.wheels[i];
     if (vis.off) return;
     const y = w.m.y + s.phys.comY - w.vis;
-    vis.steer.position.y = y;
+    placeWheel(vis, y);
     vis.steer.rotation.y = w.front ? v.steer + w.bent : w.bent;
     vis.spinner.rotation.x = w.spin;
   });
@@ -588,10 +588,11 @@ function feelFrame(dt) {
   const engineP = tmpV.set(0, c.spec.stations[6].top - 0.1 + (c.spec.lift || 0) - c.spec.phys.comY, c.spec.axle.f + 0.2).applyQuaternion(v.q).add(v.pos);
   if (dmg.smoke >= 1 && Math.random() < dt * (dmg.smoke * 30)) fx.smoke(engineP.x, engineP.y, engineP.z, v.v.x, v.v.z, dmg.smoke >= 2, dmg.smoke >= 3);
   if (v.input.nitro && v.nitroFuel > 0) {
-    const ex = tmpV2.set(c.spec.exhaust ? c.spec.exhaust.x[0] : 0.42, (c.spec.exhaust ? c.spec.exhaust.y : c.spec.stations[0].low + 0.03) + (c.spec.lift || 0) - c.spec.phys.comY, c.spec.stations[0].z - 0.1).applyQuaternion(v.q).add(v.pos);
+    const ex = (c.spec.stack ? tmpV2.set(c.spec.stack[0], c.spec.stack[1] - c.spec.phys.comY, c.spec.stack[2]) : tmpV2.set(c.spec.exhaust ? c.spec.exhaust.x[0] : 0.42, (c.spec.exhaust ? c.spec.exhaust.y : c.spec.stations[0].low + 0.03) + (c.spec.lift || 0) - c.spec.phys.comY, c.spec.stations[0].z - 0.1)).applyQuaternion(v.q).add(v.pos);
     fx.flame(ex.x, ex.y, ex.z, -v.v.x * -0.7, -v.v.z * -0.7);
   }
-  if (!G.onFoot && Math.random() < dt * 8) { const ex = tmpV2.set(c.spec.exhaust ? c.spec.exhaust.x[0] : 0.42, (c.spec.exhaust ? c.spec.exhaust.y + 0.12 : c.spec.stations[0].low) + (c.spec.lift || 0) - c.spec.phys.comY, c.spec.stations[0].z - (c.spec.exhaust ? 0.15 : 0)).applyQuaternion(v.q).add(v.pos); fx.exhaust(ex.x, ex.y, ex.z, v.v.x, v.v.z); }
+  // (a tractor puffs from its stack, more under load)
+  if (!G.onFoot && Math.random() < dt * (c.spec.stack ? 6 + 18 * v.input.throttle : 8)) { const ex = c.spec.stack ? tmpV2.set(c.spec.stack[0], c.spec.stack[1] + 0.05 - c.spec.phys.comY, c.spec.stack[2]).applyQuaternion(v.q).add(v.pos) : tmpV2.set(c.spec.exhaust ? c.spec.exhaust.x[0] : 0.42, (c.spec.exhaust ? c.spec.exhaust.y + 0.12 : c.spec.stations[0].low) + (c.spec.lift || 0) - c.spec.phys.comY, c.spec.stations[0].z - (c.spec.exhaust ? 0.15 : 0)).applyQuaternion(v.q).add(v.pos); fx.exhaust(ex.x, ex.y, ex.z, v.v.x, v.v.z); }
 
   audio.engine(v.dead || G.onFoot || drone.view ? 0.1 : v.rpm, v.p.redline, v.dead ? 0 : v.input.throttle, v.gear);
   audio.ride(speed, gravelAmt / 2, Math.max(0, skid), Math.min(1, cropAmt), v.air > 0.1, onAsphalt);
